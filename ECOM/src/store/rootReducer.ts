@@ -1,9 +1,10 @@
 import { combineReducers } from "@reduxjs/toolkit";
 import authReducer from "@/src/features/auth/store/authSlice";
+import cartReducer from "@/src/features/cart/store/cartSlice";
 
 const rootReducer = combineReducers({
   auth: authReducer,
-  // We can add other reducers (like cart, admin, wishlist) here as we build them
+  cart: cartReducer,
 });
 
 export default rootReducer;

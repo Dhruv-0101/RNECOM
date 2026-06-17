@@ -14,7 +14,10 @@ export const ENDPOINTS = {
     MOBILE_REFRESH: "/api/v1/users/mobile/refresh",   // POST - Mobile Token Rotation Refresh
     MOBILE_LOGOUT: "/api/v1/users/mobile/logout",     // POST - Mobile User Sign Out
   },
-  // We can add other endpoints like PRODUCTS, CATEGORIES, ORDERS, etc. here later
+  PRODUCTS: {
+    LIST: "/api/v1/products", // GET - Fetch products list with filtering/pagination
+    DETAIL: (id: string) => `/api/v1/products/${id}`, // GET - Fetch full product details
+  },
 };
 
 export default ENDPOINTS;

@@ -17,7 +17,7 @@ const generateMobileTokens = (userId) => {
   const accessToken = jwt.sign(
     { id: userId },
     process.env.JWT_KEY,
-    { expiresIn: "15m" } // Access token expires in 15 minutes
+    { expiresIn: "30s" } // Access token expires in 15 minutes
   );
 
   const jti = crypto.randomBytes(16).toString("hex");

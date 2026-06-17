@@ -21,37 +21,88 @@ function RootLayoutNav() {
   const router = useRouter();
   const { colors, theme } = useTheme();
 
+  // // 1. Hydrate auth state from Secure Store and show Splash Screen
+  // useEffect(() => {
+  //   async function initAuth() {
+  //     const startTime = Date.now();
+  //     try {
+  //       const token = await secureStorage.getToken();
+  //       if (token) {
+  //         // Fetch active profile to verify token validity
+  //         const profileData = await authApi.getProfile();
+  //         if (profileData.user) {
+  //           dispatch(setAuth({ user: profileData.user, token }));
+  //         } else {
+  //           await secureStorage.removeToken();
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.log("Auth session recovery failed, cleaning storage token:", error);
+  //       await secureStorage.removeToken();
+  //     } finally {
+  //       // Enforce the splash screen to display for at least 1500ms for premium branding impact
+  //       const elapsedTime = Date.now() - startTime;
+  //       const remainingTime = Math.max(0, 1500 - elapsedTime);
+
+  //       setTimeout(() => {
+  //         dispatch(setInitialized(true));
+  //         setShowSplash(false);
+  //       }, remainingTime);
+  //     }
+  //   }
+  //   initAuth();
+  // }, [dispatch]);
   // 1. Hydrate auth state from Secure Store and show Splash Screen
   useEffect(() => {
     async function initAuth() {
+      // ⏱️ Step A: Record the exact millisecond when the check starts.
+      // This is used later to calculate how long the token validation process took.
       const startTime = Date.now();
+
       try {
+        // 🔑 Step B: Retrieve the stored authentication token from the device's secure storage.
         const token = await secureStorage.getToken();
+
         if (token) {
-          // Fetch active profile to verify token validity
+          // 🌐 Step C: If a token exists, verify its validity by requesting the profile from the server.
           const profileData = await authApi.getProfile();
+
           if (profileData.user) {
+            // ✅ Step D: If the profile is returned successfully, update the Redux store.
+            // This marks the user as 'isAuthenticated' and saves their details.
             dispatch(setAuth({ user: profileData.user, token }));
           } else {
+            // ❌ Step E: If the token is invalid or inactive, delete it from storage to clean up.
             await secureStorage.removeToken();
           }
         }
       } catch (error) {
+        // ⚠️ Step F: If the server request fails (e.g., network timeout, invalid token causing a 401 error),
+        // log the error and clear the invalid token from secure storage.
         console.log("Auth session recovery failed, cleaning storage token:", error);
         await secureStorage.removeToken();
       } finally {
-        // Enforce the splash screen to display for at least 1500ms for premium branding impact
+        // ⏳ Step G: Calculate how long the auth validation took.
         const elapsedTime = Date.now() - startTime;
+
+        // 🎬 Step H: Enforce the splash screen to display for at least 1500ms.
+        // If the API call completes in 300ms, the splash screen will stay for another 1200ms.
+        // This prevents the screen from "flickering" or flashing away too fast on high-speed connections.
         const remainingTime = Math.max(0, 1500 - elapsedTime);
-        
+
+        // 🏁 Step I: Once the minimum duration is met, update the UI states.
         setTimeout(() => {
+          // Set 'isInitialized' to true in Redux so that Route Guards know it is safe to redirect or load components.
           dispatch(setInitialized(true));
+          // Set local state 'showSplash' to false to unmount the splash screen loader and render the main app screen.
           setShowSplash(false);
         }, remainingTime);
       }
     }
+    // Execute the self-contained initialization function on component mount
     initAuth();
   }, [dispatch]);
+
 
   // 2. Guest-First Auth Route Guards
   useEffect(() => {

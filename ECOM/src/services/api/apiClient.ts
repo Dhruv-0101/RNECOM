@@ -66,9 +66,12 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    console.log(`[API Client] Request failed: ${originalRequest?.method?.toUpperCase()} ${originalRequest?.url} - Status: ${error.response?.status}`);
+
     // Check if the server returned a 401 (Unauthorized) and this request hasn't been retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
+        console.log(`[API Client] Token refresh already in progress. Queueing request: ${originalRequest.url}`);
         // If we are already refreshing, queue this request
         return new Promise((resolve, reject) => {
           failedQueue.push({
@@ -81,6 +84,7 @@ apiClient.interceptors.response.use(
         });
       }
 
+      console.log(`[API Client] Access token expired (401). Initiating automatic token rotation...`);
       originalRequest._retry = true;
       isRefreshing = true;
 
@@ -90,6 +94,7 @@ apiClient.interceptors.response.use(
           throw new Error("No refresh token available");
         }
 
+        console.log(`[API Client] Calling refresh endpoint /api/v1/users/mobile/refresh...`);
         // Call the separate mobile refresh endpoint
         const response = await refreshInstance.post("/api/v1/users/mobile/refresh", {
           refreshToken,
@@ -100,15 +105,18 @@ apiClient.interceptors.response.use(
         // Save rotated credentials
         await secureStorage.setAccessToken(newAccessToken);
         await secureStorage.setRefreshToken(newRefreshToken);
+        console.log(`[API Client] Tokens rotated successfully. New tokens saved to secure storage.`);
 
         // Process all queued requests with the new access token
         processQueue(null, newAccessToken);
         isRefreshing = false;
 
         // Retry the original request
+        console.log(`[API Client] Retrying original request: ${originalRequest.url}`);
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
+        console.log(`[API Client] Token rotation failed: ${refreshError.message || refreshError}`);
         processQueue(refreshError, null);
         isRefreshing = false;
 
