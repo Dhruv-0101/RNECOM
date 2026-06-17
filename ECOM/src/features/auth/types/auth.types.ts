@@ -31,6 +31,8 @@ export interface AuthResponse {
   status: string;
   message: string;
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
   userFound?: UserProfile;
   user?: UserProfile; // used in profile fetch/register responses sometimes
 }

@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { ReduxProvider } from "@/src/shared/providers/ReduxProvider";
 import { QueryProvider } from "@/src/shared/providers/QueryProvider";
 import { ThemeProvider, useTheme } from "@/src/shared/providers/ThemeProvider";
@@ -10,18 +10,21 @@ import { secureStorage } from "@/src/services/storage/secureStorage";
 import { setAuth, setInitialized } from "@/src/features/auth/store/authSlice";
 import { authApi } from "@/src/features/auth/api/authApi";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
+import { Text } from "@/src/shared/ui/Text";
 import { AppDispatch } from "@/src/store/store";
 
 function RootLayoutNav() {
   const { isAuthenticated, isInitialized } = useCurrentUser();
+  const [showSplash, setShowSplash] = useState(true);
   const dispatch = useDispatch<AppDispatch>();
   const segments = useSegments();
   const router = useRouter();
   const { colors, theme } = useTheme();
 
-  // 1. Hydrate auth state from Secure Store
+  // 1. Hydrate auth state from Secure Store and show Splash Screen
   useEffect(() => {
     async function initAuth() {
+      const startTime = Date.now();
       try {
         const token = await secureStorage.getToken();
         if (token) {
@@ -34,48 +37,67 @@ function RootLayoutNav() {
           }
         }
       } catch (error) {
-        console.log(
-          "Auth session recovery failed, cleaning storage token:",
-          error,
-        );
+        console.log("Auth session recovery failed, cleaning storage token:", error);
         await secureStorage.removeToken();
       } finally {
-        dispatch(setInitialized(true));
+        // Enforce the splash screen to display for at least 1500ms for premium branding impact
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, 1500 - elapsedTime);
+        
+        setTimeout(() => {
+          dispatch(setInitialized(true));
+          setShowSplash(false);
+        }, remainingTime);
       }
     }
     initAuth();
   }, [dispatch]);
 
-  // 2. Auth Route Guards
+  // 2. Guest-First Auth Route Guards
   useEffect(() => {
-    if (!isInitialized) return;
+    // Wait for the initialization check to complete and splash screen to hide
+    if (!isInitialized || showSplash) return;
 
-    // Check if the route is part of the auth group (e.g. (auth)/login)
+    // Check if the route is part of the auth group (e.g. login/signup)
     const inAuthGroup =
       (segments[0] as string) === "(auth)" ||
       (segments as string[]).includes("login") ||
       (segments as string[]).includes("signup");
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // If not logged in and trying to access protected paths -> send to login
+    // Define namespaces that require authenticated users
+    const protectedRoutes = ["cart", "profile", "checkout", "orders", "admin", "settings"];
+    const isProtectedRoute = (segments as string[]).some((segment) =>
+      protectedRoutes.includes(segment)
+    );
+
+    if (!isAuthenticated && isProtectedRoute) {
+      // Guest trying to enter protected section -> redirect to login
       router.replace("/login");
     } else if (isAuthenticated && inAuthGroup) {
-      // If already logged in and hitting login/register screens -> redirect to main app
+      // Authenticated user landing on login/register page -> redirect to Home
       router.replace("/");
     }
-  }, [isAuthenticated, isInitialized, segments, router]);
+  }, [isAuthenticated, isInitialized, showSplash, segments, router]);
 
-  if (!isInitialized) {
+  // Render Premium Brand Splash Screen
+  if (!isInitialized || showSplash) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.splashContainer, { backgroundColor: colors.background }]}>
+        <StatusBar style={theme === "dark" ? "light" : "dark"} />
+        <View style={styles.brandContainer}>
+          <View style={[styles.logoBadge, { backgroundColor: colors.primaryLight }]}>
+            <Text variant="xxxl" weight="bold" color={colors.primary}>
+              🛍️
+            </Text>
+          </View>
+          <Text variant="xxxl" weight="bold" color={colors.primary} style={styles.brandText}>
+            E-Shop
+          </Text>
+          <Text variant="sm" color={colors.textMuted}>
+            Your Premium E-Commerce Hub
+          </Text>
+        </View>
+        <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
       </View>
     );
   }
@@ -83,13 +105,42 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style={theme === "dark" ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }} initialRouteName="(tabs)">
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  brandContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logoBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  brandText: {
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  spinner: {
+    marginTop: "auto",
+  },
+});
 
 export default function RootLayout() {
   return (

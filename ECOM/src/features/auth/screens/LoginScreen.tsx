@@ -6,8 +6,8 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { LoginForm } from "../components/LoginForm";
@@ -65,6 +65,16 @@ export const LoginScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            onPress={() => router.replace("/")}
+            style={styles.guestButton}
+            activeOpacity={0.7}
+          >
+            <Text variant="sm" weight="semibold" color={colors.primary}>
+              Browse as Guest
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -112,6 +122,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: SPACING.xl,
+  },
+  guestButton: {
+    alignItems: "center",
+    marginTop: SPACING.lg,
+    padding: SPACING.sm,
   },
 });
 

@@ -10,6 +10,9 @@ export const ENDPOINTS = {
     LOGIN: "/api/v1/users/login",       // POST - User Sign In (email, password)
     PROFILE: "/api/v1/users/profile",   // GET - Active authenticated user credentials & orders
     UPDATE_SHIPPING: "/api/v1/users/update/shipping", // PUT - Update shipping address details
+    MOBILE_LOGIN: "/api/v1/users/mobile/login",       // POST - Mobile User Sign In
+    MOBILE_REFRESH: "/api/v1/users/mobile/refresh",   // POST - Mobile Token Rotation Refresh
+    MOBILE_LOGOUT: "/api/v1/users/mobile/logout",     // POST - Mobile User Sign Out
   },
   // We can add other endpoints like PRODUCTS, CATEGORIES, ORDERS, etc. here later
 };

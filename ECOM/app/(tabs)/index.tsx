@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, SafeAreaView } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 import { useLogout } from "@/src/features/auth/hooks/useLogout";
@@ -7,39 +7,72 @@ import { Text } from "@/src/shared/ui/Text";
 import { Button } from "@/src/shared/ui/Button";
 import { Card } from "@/src/shared/ui/Card";
 import { SPACING } from "@/src/shared/constants/spacing";
+import { useRouter } from "expo-router";
 
 export default function Home() {
   const { colors, toggleTheme, theme } = useTheme();
-  const { user } = useCurrentUser();
+  const { user, isAuthenticated } = useCurrentUser();
   const { logout } = useLogout();
+  const router = useRouter();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Text variant="xxl" weight="bold">
-            Hello, {user?.fullname || "Shopper"}! 👋
-          </Text>
-          <Text variant="sm" color={colors.textMuted}>
-            Welcome to your premium e-commerce app
-          </Text>
-        </View>
+        {isAuthenticated ? (
+          // Authenticated User Panel
+          <View style={{ flex: 1 }}>
+            <View style={styles.header}>
+              <Text variant="xxl" weight="bold">
+                Hello, {user?.fullname || "Shopper"}! 👋
+              </Text>
+              <Text variant="sm" color={colors.textMuted}>
+                Welcome to your premium e-commerce app
+              </Text>
+            </View>
 
-        <Card style={styles.card}>
-          <Text variant="lg" weight="semibold" style={styles.cardTitle}>
-            Account Information
-          </Text>
-          <View style={styles.infoRow}>
-            <Text variant="sm" color={colors.textMuted}>Email:</Text>
-            <Text variant="sm" weight="medium">{user?.email}</Text>
+            <Card style={styles.card}>
+              <Text variant="lg" weight="semibold" style={styles.cardTitle}>
+                Account Information
+              </Text>
+              <View style={styles.infoRow}>
+                <Text variant="sm" color={colors.textMuted}>Email:</Text>
+                <Text variant="sm" weight="medium">{user?.email}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text variant="sm" color={colors.textMuted}>Role:</Text>
+                <Text variant="sm" weight="medium" color={user?.isAdmin ? colors.primary : colors.text}>
+                  {user?.isAdmin ? "Administrator" : "Customer"}
+                </Text>
+              </View>
+            </Card>
           </View>
-          <View style={styles.infoRow}>
-            <Text variant="sm" color={colors.textMuted}>Role:</Text>
-            <Text variant="sm" weight="medium" color={user?.isAdmin ? colors.primary : colors.text}>
-              {user?.isAdmin ? "Administrator" : "Customer"}
-            </Text>
+        ) : (
+          // Guest User Panel
+          <View style={{ flex: 1 }}>
+            <View style={styles.header}>
+              <Text variant="xxl" weight="bold">
+                Welcome to E-Shop! 🛍️
+              </Text>
+              <Text variant="sm" color={colors.textMuted}>
+                Discover the best brands and products
+              </Text>
+            </View>
+
+            <Card style={styles.card}>
+              <Text variant="lg" weight="semibold" style={styles.cardTitle}>
+                Guest Account
+              </Text>
+              <Text variant="sm" color={colors.textMuted} style={{ marginBottom: SPACING.md }}>
+                Sign in to customize your catalog, save items to your wishlist, and checkout with easy payments.
+              </Text>
+              <Button
+                title="Sign In / Register"
+                onPress={() => router.push("/login")}
+                icon="log-in-outline"
+              />
+            </Card>
           </View>
-        </Card>
+        )}
 
         <View style={styles.buttonGroup}>
           <Button
@@ -50,16 +83,18 @@ export default function Home() {
             style={styles.actionBtn}
           />
 
-          <Button
-            title="Sign Out"
-            onPress={logout}
-            variant="primary"
-            icon="log-out-outline"
-            style={[styles.actionBtn, { backgroundColor: colors.error }]}
-          />
+          {isAuthenticated && (
+            <Button
+              title="Sign Out"
+              onPress={logout}
+              variant="primary"
+              icon="log-out-outline"
+              style={[styles.actionBtn, { backgroundColor: colors.error }]}
+            />
+          )}
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
