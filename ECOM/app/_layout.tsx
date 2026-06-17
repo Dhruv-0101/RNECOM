@@ -34,7 +34,10 @@ function RootLayoutNav() {
           }
         }
       } catch (error) {
-        console.log("Auth session recovery failed, cleaning storage token:", error);
+        console.log(
+          "Auth session recovery failed, cleaning storage token:",
+          error,
+        );
         await secureStorage.removeToken();
       } finally {
         dispatch(setInitialized(true));
@@ -99,4 +102,4 @@ export default function RootLayout() {
     </ReduxProvider>
   );
 }
-
+//hi
