@@ -2,7 +2,7 @@ import { apiClient } from "@/src/services/api/apiClient";
 import { ENDPOINTS } from "@/src/services/api/endpoints";
 import { LoginFormData } from "../schemas/login.schema";
 import { SignupFormData } from "../schemas/signup.schema";
-import { AuthResponse } from "../types/auth.types";
+import { AuthResponse, UserProfile } from "../types/auth.types";
 
 export const authApi = {
   /**
@@ -38,6 +38,14 @@ export const authApi = {
     } catch (err) {
       console.log("Failed to notify backend of logout:", err);
     }
+  },
+
+  /**
+   * Update shipping address details
+   */
+  async updateShippingAddress(data: NonNullable<UserProfile["shippingAddress"]>): Promise<AuthResponse> {
+    const response = await apiClient.put<AuthResponse>(ENDPOINTS.AUTH.UPDATE_SHIPPING, data);
+    return response.data;
   },
 };
 

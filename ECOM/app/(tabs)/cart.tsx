@@ -3,21 +3,33 @@ import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "expo-router";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { Text } from "@/src/shared/ui/Text";
 import { Card } from "@/src/shared/ui/Card";
 import { Button } from "@/src/shared/ui/Button";
 import { BORDER_RADIUS, SPACING } from "@/src/shared/constants/spacing";
 import { AppDispatch, RootState } from "@/src/store/store";
-import { removeFromCart } from "@/src/features/cart/store/cartSlice";
+import { removeFromCart, updateCartQuantity } from "@/src/features/cart/store/cartSlice";
+import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 
 const fallbackImage = require("@/assets/images/react-logo.png");
 
 export default function Cart() {
   const { colors } = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
+  const { isAuthenticated } = useCurrentUser();
   const items = useSelector((state: RootState) => state.cart.items);
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handleUpdateQuantity = (id: string, quantity: number) => {
+    if (quantity <= 0) {
+      dispatch(removeFromCart(id));
+    } else {
+      dispatch(updateCartQuantity({ id, quantity }));
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -52,9 +64,31 @@ export default function Cart() {
               <Text variant="xs" color={colors.textMuted}>
                 {item.color} / {item.size}
               </Text>
-              <Text variant="sm" weight="bold" color={colors.primary}>
-                ${item.price.toFixed(2)} x {item.quantity}
-              </Text>
+              <View style={styles.priceQuantityRow}>
+                <Text variant="sm" weight="bold" color={colors.primary}>
+                  ${item.price.toFixed(2)}
+                </Text>
+                <View style={[styles.stepper, { backgroundColor: colors.inputBg }]}>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                    style={styles.stepButton}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="remove" size={14} color={colors.text} />
+                  </TouchableOpacity>
+                  <Text variant="xs" weight="bold" color={colors.text} style={styles.quantityText}>
+                    {item.quantity}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                    disabled={item.quantity >= item.qtyLeft}
+                    style={styles.stepButton}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add" size={14} color={item.quantity >= item.qtyLeft ? colors.textMuted : colors.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
             <TouchableOpacity
               onPress={() => dispatch(removeFromCart(item.id))}
@@ -87,7 +121,17 @@ export default function Cart() {
                   ${total.toFixed(2)}
                 </Text>
               </View>
-              <Button title="Checkout" onPress={() => {}} icon="card-outline" />
+              <Button
+                title="Checkout"
+                onPress={() => {
+                  if (isAuthenticated) {
+                    router.push("/checkout");
+                  } else {
+                    router.push("/login");
+                  }
+                }}
+                icon="card-outline"
+              />
             </Card>
           ) : null
         }
@@ -125,6 +169,28 @@ const styles = StyleSheet.create({
   brand: {
     textTransform: "uppercase",
     marginVertical: SPACING.xs,
+  },
+  priceQuantityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.xs,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: BORDER_RADIUS.sm,
+    padding: 2,
+  },
+  stepButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quantityText: {
+    minWidth: 24,
+    textAlign: "center",
   },
   removeButton: {
     width: 38,

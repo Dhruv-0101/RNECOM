@@ -9,13 +9,15 @@ import {
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { useProduct } from "@/src/features/products/hooks/useProducts";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 import { AuthRequiredModal } from "@/src/features/auth/components/AuthRequiredModal";
 import { addToCart } from "@/src/features/cart/store/cartSlice";
-import { AppDispatch } from "@/src/store/store";
+import { AppDispatch, RootState } from "@/src/store/store";
+import { addToWishlistLocal, removeFromWishlistLocal } from "@/src/features/wishlist/store/wishlistSlice";
+import { wishlistApi } from "@/src/features/wishlist/api/wishlistApi";
 import { Text } from "@/src/shared/ui/Text";
 import { Button } from "@/src/shared/ui/Button";
 import { Card } from "@/src/shared/ui/Card";
@@ -29,6 +31,7 @@ export default function ProductDetailsScreen() {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useCurrentUser();
   const dispatch = useDispatch<AppDispatch>();
+  const cartItems = useSelector((state: RootState) => state.cart.items);
   const { data: product, isLoading, error, refetch, isFetching } = useProduct(id);
   const [selectedImage, setSelectedImage] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -43,6 +46,47 @@ export default function ProductDetailsScreen() {
   const qtyLeft = product?.qtyLeft ?? product?.totalQty ?? 0;
   const outOfStock = qtyLeft <= 0;
   const maxQuantity = Math.max(qtyLeft, 1);
+
+  const inCartQty = useMemo(() => {
+    if (!product) return 0;
+    return cartItems
+      .filter((item) => item.productId === product._id)
+      .reduce((sum, item) => sum + item.quantity, 0);
+  }, [cartItems, product]);
+
+  const wishlistItems = useSelector((state: RootState) => state.wishlist.items);
+  const isWishlisted = useMemo(() => {
+    if (!product) return false;
+    return wishlistItems.some((item) => item._id === product._id);
+  }, [wishlistItems, product]);
+
+  const handleToggleWishlist = async () => {
+    if (!product) return;
+
+    if (isAuthenticated) {
+      try {
+        if (isWishlisted) {
+          dispatch(removeFromWishlistLocal(product._id));
+        } else {
+          dispatch(addToWishlistLocal(product));
+        }
+        await wishlistApi.toggleWishlist(product._id);
+      } catch (err) {
+        console.log("Failed to toggle wishlist on server:", err);
+        if (isWishlisted) {
+          dispatch(addToWishlistLocal(product));
+        } else {
+          dispatch(removeFromWishlistLocal(product._id));
+        }
+      }
+    } else {
+      if (isWishlisted) {
+        dispatch(removeFromWishlistLocal(product._id));
+      } else {
+        dispatch(addToWishlistLocal(product));
+      }
+    }
+  };
 
   const decreaseQuantity = () => {
     setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1));
@@ -97,7 +141,18 @@ export default function ProductDetailsScreen() {
           <Text variant="lg" weight="semibold" numberOfLines={1} style={styles.headerTitle}>
             Product Details
           </Text>
-          <View style={styles.iconButton} />
+          <TouchableOpacity
+            onPress={handleToggleWishlist}
+            disabled={!product}
+            style={[styles.iconButton, { backgroundColor: colors.inputBg }]}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isWishlisted ? "heart" : "heart-outline"}
+              size={22}
+              color={isWishlisted ? colors.error : colors.text}
+            />
+          </TouchableOpacity>
         </View>
 
         {isLoading ? (
@@ -127,6 +182,13 @@ export default function ProductDetailsScreen() {
                   {outOfStock ? "OUT OF STOCK" : `${qtyLeft} LEFT`}
                 </Text>
               </View>
+              {inCartQty > 0 && (
+                <View style={[styles.cartBadge, { backgroundColor: colors.success }]}>
+                  <Text variant="xs" weight="bold" color="#ffffff">
+                    {inCartQty} IN CART
+                  </Text>
+                </View>
+              )}
             </View>
 
             {images.length > 1 && (
@@ -286,9 +348,16 @@ export default function ProductDetailsScreen() {
                     <Ionicons name="add" size={22} color={quantity >= maxQuantity ? colors.textMuted : colors.text} />
                   </TouchableOpacity>
                 </View>
-                <Text variant="sm" color={colors.textMuted}>
-                  Max {maxQuantity}
-                </Text>
+                <View style={styles.quantityMeta}>
+                  <Text variant="sm" color={colors.textMuted}>
+                    Max {maxQuantity}
+                  </Text>
+                  {inCartQty > 0 && (
+                    <Text variant="sm" color={colors.success} weight="semibold" style={{ marginTop: 2 }}>
+                      ({inCartQty} in cart)
+                    </Text>
+                  )}
+                </View>
               </View>
               {!!selectionError && (
                 <Text variant="sm" color={colors.error} style={styles.selectionError}>
@@ -296,20 +365,33 @@ export default function ProductDetailsScreen() {
                 </Text>
               )}
 
-              <TouchableOpacity
-                onPress={handleAddToCart}
-                disabled={outOfStock}
-                style={[
-                  styles.addToCartHero,
-                  { backgroundColor: outOfStock ? colors.border : colors.primary },
-                ]}
-                activeOpacity={0.86}
-              >
-                <Ionicons name="cart-outline" size={22} color="#ffffff" />
-                <Text variant="lg" weight="bold" color="#ffffff">
-                  {outOfStock ? "Out of Stock" : `Add ${quantity} to Cart`}
-                </Text>
-              </TouchableOpacity>
+              {!isAuthenticated ? (
+                <TouchableOpacity
+                  onPress={() => router.push("/login")}
+                  style={[styles.addToCartHero, { backgroundColor: colors.border }]}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="log-in-outline" size={22} color={colors.text} />
+                  <Text variant="lg" weight="bold" color={colors.text}>
+                    Login / Sign Up to Add to Cart
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleAddToCart}
+                  disabled={outOfStock}
+                  style={[
+                    styles.addToCartHero,
+                    { backgroundColor: outOfStock ? colors.border : colors.primary },
+                  ]}
+                  activeOpacity={0.86}
+                >
+                  <Ionicons name="cart-outline" size={22} color="#ffffff" />
+                  <Text variant="lg" weight="bold" color="#ffffff">
+                    {outOfStock ? "Out of Stock" : `Add ${quantity} to Cart`}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </Card>
 
             <Card style={styles.section}>
@@ -576,5 +658,16 @@ const styles = StyleSheet.create({
   reviewMessage: {
     marginTop: SPACING.xs,
     lineHeight: 20,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: SPACING.md,
+    right: SPACING.md,
+    borderRadius: BORDER_RADIUS.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  quantityMeta: {
+    alignItems: "flex-end",
   },
 });

@@ -9,6 +9,8 @@ import { useDispatch } from "react-redux";
 import { secureStorage } from "@/src/services/storage/secureStorage";
 import { setAuth, setInitialized } from "@/src/features/auth/store/authSlice";
 import { authApi } from "@/src/features/auth/api/authApi";
+import { wishlistApi } from "@/src/features/wishlist/api/wishlistApi";
+import { setWishlist } from "@/src/features/wishlist/store/wishlistSlice";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 import { Text } from "@/src/shared/ui/Text";
 import { AppDispatch } from "@/src/store/store";
@@ -40,6 +42,12 @@ function RootLayoutNav() {
             // ✅ Step D: If the profile is returned successfully, update the Redux store.
             // This marks the user as 'isAuthenticated' and saves their details.
             dispatch(setAuth({ user: profileData.user, token }));
+            try {
+              const wishlistData = await wishlistApi.getWishlist();
+              dispatch(setWishlist(wishlistData.wishlist || []));
+            } catch (wErr) {
+              console.log("Failed to fetch wishlist on startup:", wErr);
+            }
           } else {
             // ❌ Step E: If the token is invalid or inactive, delete it from storage to clean up.
             await secureStorage.removeToken();
@@ -48,7 +56,10 @@ function RootLayoutNav() {
       } catch (error) {
         // ⚠️ Step F: If the server request fails (e.g., network timeout, invalid token causing a 401 error),
         // log the error and clear the invalid token from secure storage.
-        console.log("Auth session recovery failed, cleaning storage token:", error);
+        console.log(
+          "Auth session recovery failed, cleaning storage token:",
+          error,
+        );
         await secureStorage.removeToken();
       } finally {
         // ⏳ Step G: Calculate how long the auth validation took.
@@ -72,7 +83,6 @@ function RootLayoutNav() {
     initAuth();
   }, [dispatch]);
 
-
   // 2. Guest-First Auth Route Guards
   useEffect(() => {
     // Wait for the initialization check to complete and splash screen to hide
@@ -94,9 +104,9 @@ function RootLayoutNav() {
       (segments as string[]).includes("signup");
 
     // Define namespaces that require authenticated users
-    const protectedRoutes = ["cart", "profile", "checkout", "orders"];
+    const protectedRoutes = ["checkout", "orders"];
     const isProtectedRoute = (segments as string[]).some((segment) =>
-      protectedRoutes.includes(segment)
+      protectedRoutes.includes(segment),
     );
 
     if (!isAuthenticated && isProtectedRoute) {
@@ -111,22 +121,35 @@ function RootLayoutNav() {
   // Render Premium Brand Splash Screen
   if (!isInitialized || showSplash) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.splashContainer, { backgroundColor: colors.background }]}
+      >
         <StatusBar style={theme === "dark" ? "light" : "dark"} />
         <View style={styles.brandContainer}>
-          <View style={[styles.logoBadge, { backgroundColor: colors.primaryLight }]}>
+          <View
+            style={[styles.logoBadge, { backgroundColor: colors.primaryLight }]}
+          >
             <Text variant="xxxl" weight="bold" color={colors.primary}>
               🛍️
             </Text>
           </View>
-          <Text variant="xxxl" weight="bold" color={colors.primary} style={styles.brandText}>
+          <Text
+            variant="xxxl"
+            weight="bold"
+            color={colors.primary}
+            style={styles.brandText}
+          >
             E-Shop
           </Text>
           <Text variant="sm" color={colors.textMuted}>
             Your Premium E-Commerce Hub
           </Text>
         </View>
-        <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
+        <ActivityIndicator
+          size="small"
+          color={colors.primary}
+          style={styles.spinner}
+        />
       </View>
     );
   }

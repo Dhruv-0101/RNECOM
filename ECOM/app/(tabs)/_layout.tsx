@@ -3,17 +3,24 @@ import { Ionicons } from "@expo/vector-icons";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
+import { useSelector } from "react-redux";
+import { RootState } from "@/src/store/store";
+import { CustomHeader } from "@/src/shared/ui/CustomHeader";
 
 export default function TabsLayout() {
   const { colors } = useTheme();
-
-  // An object { top, bottom, left, right } that tells you how much of the screen is covered by notches, status bars, or home‑indicator areas on the device.
   const insets = useSafeAreaInsets();
+
+  const { user } = useSelector((state: RootState) => state.auth);
+  const cartItems = useSelector((state: RootState) => state.cart.items);
+  const totalCartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const isAdminUser = user && (user.isAdmin || user.email === "admin@gmail.com");
 
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
+        header: () => <CustomHeader />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
@@ -54,10 +61,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="wishlist"
         options={{
-          title: "Wishlist",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "heart" : "heart-outline"} size={22} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -67,6 +71,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "cart" : "cart-outline"} size={22} color={color} />
           ),
+          tabBarBadge: totalCartCount > 0 ? totalCartCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            color: "#ffffff",
+            fontSize: 10,
+            lineHeight: 14,
+          },
         }}
       />
       <Tabs.Screen
@@ -75,6 +86,16 @@ export default function TabsLayout() {
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: isAdminUser ? "/admin" : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "shield-checkmark" : "shield-checkmark-outline"} size={22} color={color} />
           ),
         }}
       />

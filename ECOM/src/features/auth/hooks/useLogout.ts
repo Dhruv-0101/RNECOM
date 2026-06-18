@@ -4,6 +4,7 @@ import { clearAuth } from "../store/authSlice";
 import { authApi } from "../api/authApi";
 import { secureStorage } from "@/src/services/storage/secureStorage";
 import { AppDispatch } from "@/src/store/store";
+import { clearWishlist } from "@/src/features/wishlist/store/wishlistSlice";
 
 export const useLogout = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -23,6 +24,7 @@ export const useLogout = () => {
       await secureStorage.clearTokens();
       // 3. Reset state & cache
       dispatch(clearAuth());
+      dispatch(clearWishlist());
       queryClient.clear();
     }
   };

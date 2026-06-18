@@ -18,6 +18,23 @@ export const ENDPOINTS = {
     LIST: "/api/v1/products", // GET - Fetch products list with filtering/pagination
     DETAIL: (id: string) => `/api/v1/products/${id}`, // GET - Fetch full product details
   },
+  WISHLIST: {
+    TOGGLE: "/api/v1/wishlist/toggle",
+    GET: "/api/v1/wishlist",
+    MERGE: "/api/v1/wishlist/merge",
+  },
+  CATEGORIES: {
+    LIST: "/api/v1/categories",
+  },
+  COUPONS: {
+    LIST: "/api/v1/coupons",
+    SINGLE: "/api/v1/coupons/single",
+  },
+  ORDERS: {
+    CREATE: "/api/v1/orders",
+    LIST: "/api/v1/orders",
+    DETAIL: (id: string) => `/api/v1/orders/${id}`,
+  },
 };
 
 export default ENDPOINTS;

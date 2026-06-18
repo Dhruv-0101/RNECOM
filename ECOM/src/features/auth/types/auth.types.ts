@@ -14,8 +14,34 @@ export interface UserProfile {
     country?: string;
     phone?: string;
   };
-  orders?: string[];
+  orders?: string[] | PopulatedOrder[];
   wishLists?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PopulatedOrder {
+  _id: string;
+  user?: {
+    _id: string;
+    fullname: string;
+    email: string;
+    shippingAddress?: UserProfile["shippingAddress"];
+  } | string;
+  orderNumber: string;
+  orderItems: {
+    _id: string;
+    name: string;
+    qty: number;
+    price: number;
+    description?: string;
+  }[];
+  shippingAddress: NonNullable<UserProfile["shippingAddress"]>;
+  paymentStatus: string;
+  paymentMethod?: string;
+  totalPrice: number;
+  currency?: string;
+  status: "pending" | "processing" | "shipped" | "delivered";
   createdAt: string;
   updatedAt: string;
 }
