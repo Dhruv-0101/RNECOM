@@ -20,7 +20,7 @@ const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onAddToCart }) => {
   const { colors, isDark } = useTheme();
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(0);
 
   // Handle fallback placeholder images
   const imageSource = product.images && product.images.length > 0

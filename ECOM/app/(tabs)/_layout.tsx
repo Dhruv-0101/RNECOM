@@ -6,6 +6,8 @@ import { useTheme } from "@/src/shared/providers/ThemeProvider";
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+
+  // An object { top, bottom, left, right } that tells you how much of the screen is covered by notches, status bars, or home‑indicator areas on the device.
   const insets = useSafeAreaInsets();
 
   return (
@@ -34,7 +36,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          headerTitle: "E-Shop",
+          // headerTitle: "E-Shop",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           ),

@@ -21,37 +21,6 @@ function RootLayoutNav() {
   const router = useRouter();
   const { colors, theme } = useTheme();
 
-  // // 1. Hydrate auth state from Secure Store and show Splash Screen
-  // useEffect(() => {
-  //   async function initAuth() {
-  //     const startTime = Date.now();
-  //     try {
-  //       const token = await secureStorage.getToken();
-  //       if (token) {
-  //         // Fetch active profile to verify token validity
-  //         const profileData = await authApi.getProfile();
-  //         if (profileData.user) {
-  //           dispatch(setAuth({ user: profileData.user, token }));
-  //         } else {
-  //           await secureStorage.removeToken();
-  //         }
-  //       }
-  //     } catch (error) {
-  //       console.log("Auth session recovery failed, cleaning storage token:", error);
-  //       await secureStorage.removeToken();
-  //     } finally {
-  //       // Enforce the splash screen to display for at least 1500ms for premium branding impact
-  //       const elapsedTime = Date.now() - startTime;
-  //       const remainingTime = Math.max(0, 1500 - elapsedTime);
-
-  //       setTimeout(() => {
-  //         dispatch(setInitialized(true));
-  //         setShowSplash(false);
-  //       }, remainingTime);
-  //     }
-  //   }
-  //   initAuth();
-  // }, [dispatch]);
   // 1. Hydrate auth state from Secure Store and show Splash Screen
   useEffect(() => {
     async function initAuth() {
@@ -109,6 +78,15 @@ function RootLayoutNav() {
     // Wait for the initialization check to complete and splash screen to hide
     if (!isInitialized || showSplash) return;
 
+    /*
+    URL	segments value
+/	[] (empty array – root)
+/login	["login"]
+/profile/settings	["profile", "settings"]
+/(auth)/signup (auth group)	["(auth)", "signup"]
+/(tabs)/shop/product/42	["(tabs)", "shop", "product", "42"]
+    */
+
     // Check if the route is part of the auth group (e.g. login/signup)
     const inAuthGroup =
       (segments[0] as string) === "(auth)" ||
@@ -116,7 +94,7 @@ function RootLayoutNav() {
       (segments as string[]).includes("signup");
 
     // Define namespaces that require authenticated users
-    const protectedRoutes = ["cart", "profile", "checkout", "orders", "admin", "settings"];
+    const protectedRoutes = ["cart", "profile", "checkout", "orders"];
     const isProtectedRoute = (segments as string[]).some((segment) =>
       protectedRoutes.includes(segment)
     );
