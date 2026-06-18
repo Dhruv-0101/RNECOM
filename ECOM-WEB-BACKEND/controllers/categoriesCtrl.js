@@ -56,12 +56,16 @@ export const getSingleCategoryCtrl = asyncHandler(async (req, res) => {
 export const updateCategoryCtrl = asyncHandler(async (req, res) => {
   const { name } = req.body;
 
+  // Build update object; include image if a new file was uploaded
+  const updateData = { name };
+  if (req?.file?.path) {
+    updateData.image = req.file.path;
+  }
+
   //update
   const category = await Category.findByIdAndUpdate(
     req.params.id,
-    {
-      name,
-    },
+    updateData,
     {
       new: true,
     }

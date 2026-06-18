@@ -15,6 +15,7 @@ import reviewRouter from "../routes/reviewRouter.js";
 import userRoutes from "../routes/usersRoute.js";
 import Order from "../model/Order.js";
 import couponsRouter from "../routes/couponsRouter.js";
+import wishlistRouter from "../routes/wishlistRouter.js";
 
 //db connect
 dbConnect();
@@ -103,6 +104,71 @@ app.use(express.static("public"));
 app.get("/", (req, res) => {
   res.sendFile(path.join("public", "index.html"));
 });
+
+app.get("/success", async (req, res) => {
+  const { session_id } = req.query;
+  if (session_id) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      if (session.payment_status === "paid") {
+        const { orderId } = session.metadata;
+        const order = await Order.findById(JSON.parse(orderId));
+        if (order && order.paymentStatus !== "Paid") {
+          order.paymentStatus = "Paid";
+          order.paymentMethod = session.payment_method_types[0] || "card";
+          order.totalPrice = session.amount_total / 100;
+          await order.save();
+          console.log(`Order ${order._id} marked as Paid via success URL verification.`);
+        }
+      }
+    } catch (err) {
+      console.log("Error verifying checkout session on success:", err.message);
+    }
+  }
+  res.send(`
+    <html>
+      <head>
+        <title>Payment Successful</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: -apple-system, sans-serif; text-align: center; padding: 50px 20px; background-color: #f8fafc; color: #0f172a; }
+          .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+          h1 { color: #10b981; }
+          p { color: #64748b; font-size: 16px; line-height: 24px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>✓ Payment Successful</h1>
+          <p>Your payment has been processed. You can now close this window to return to the app.</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
+app.get("/cancel", (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>Payment Cancelled</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: -apple-system, sans-serif; text-align: center; padding: 50px 20px; background-color: #f8fafc; color: #0f172a; }
+          .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+          h1 { color: #ef4444; }
+          p { color: #64748b; font-size: 16px; line-height: 24px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>✗ Payment Cancelled</h1>
+          <p>The checkout process was cancelled. You can now close this window to return to the app.</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
 app.use("/api/v1/users/", userRoutes);
 app.use("/api/v1/products/", productsRouter);
 app.use("/api/v1/categories/", categoriesRouter);
@@ -111,6 +177,7 @@ app.use("/api/v1/colors/", colorRouter);
 app.use("/api/v1/reviews/", reviewRouter);
 app.use("/api/v1/orders/", orderRouter);
 app.use("/api/v1/coupons/", couponsRouter);
+app.use("/api/v1/wishlist/", wishlistRouter);
 //err middleware
 app.use(notFound);
 app.use(globalErrhandler);

@@ -20,5 +20,5 @@ categoriesRouter.post(
 categoriesRouter.get("/", getAllCategoriesCtrl);
 categoriesRouter.get("/:id", getSingleCategoryCtrl);
 categoriesRouter.delete("/:id", deleteCategoryCtrl);
-categoriesRouter.put("/:id", updateCategoryCtrl);
+categoriesRouter.put("/:id", isLoggedIn, catetgoryFileUpload.single("file"), updateCategoryCtrl);
 export default categoriesRouter;

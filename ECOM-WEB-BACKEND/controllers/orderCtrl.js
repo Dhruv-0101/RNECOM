@@ -28,63 +28,51 @@ import Coupon from "../model/Coupon.js";
 const stripe = new Stripe(process.env.STRIPE_KEY);
 
 export const createOrderCtrl = asyncHandler(async (req, res) => {
-  // //get teh coupon
-  // const { coupon } = req?.query;
-
-  // const couponFound = await Coupon.findOne({
-  //   code: coupon?.toUpperCase(),
-  // });
-  // if (couponFound?.isExpired) {
-  //   throw new Error("Coupon has expired");
-  // }
-  // if (!couponFound) {
-  //   throw new Error("Coupon does exists");
-  // }
-
-  //get discount
-  // const discount = couponFound?.discount / 100;
-
-  //Get the payload(customer, orderItems, shipppingAddress, totalPrice);
-  const { orderItems, shippingAddress, totalPrice } = req.body;
+  // Get the payload (orderItems, shippingAddress, totalPrice, optional coupon)
+  const { orderItems, shippingAddress, totalPrice, coupon } = req.body;
   console.log(req.body);
-  //Find the user
+
+  // Parse and validate coupon details if provided
+  let discount = 0;
+  let couponFound = null;
+  if (coupon) {
+    couponFound = await Coupon.findOne({
+      code: coupon.toUpperCase(),
+    });
+    if (!couponFound) {
+      throw new Error("Coupon not found");
+    }
+    if (couponFound.isExpired) {
+      throw new Error("Coupon has expired");
+    }
+    discount = couponFound.discount; // Percentage e.g. 15 for 15%
+  }
+
+  // Find the user
   const user = await User.findById(req.userAuthId);
-  //Check if user has shipping address
+  // Check if user has shipping address
   if (!user?.hasShippingAddress) {
     throw new Error("Please provide shipping address");
   }
-  //Check if order is not empty
+  // Check if order is not empty
   if (orderItems?.length <= 0) {
     throw new Error("No Order Items");
   }
-  //Place/create order - save into DB
+
+  const discountedPrice = couponFound
+    ? totalPrice - totalPrice * (discount / 100)
+    : totalPrice;
+
+  // Place/create order - save into DB
   const order = await Order.create({
     user: user?._id,
     orderItems,
     shippingAddress,
-    // totalPrice: couponFound ? totalPrice - totalPrice * discount : totalPrice,
-    totalPrice,
+    totalPrice: Number(discountedPrice.toFixed(2)),
   });
 
-  //Update the product qty
+  // Update the product qty
   const products = await Product.find({ _id: { $in: orderItems } });
-  //orderItems is a array of different Items and Product._id
-  /*for example 
-  "orderItems" : [
-    {
-      "_id:"2323456ytfdcvbi845kmnbvd", 
-      "name":"t-shirt",
-      "totalQty":200,
-      "totalQtyBuying":3,
-      "price":50
-    }
-  ],
-  "shippingAddress":{
-      "firstname":"dhruv patel",
-      "lastname":"patel",
-  },
-  "totalPrice":150 
-  */
 
   orderItems?.map(async (order) => {
     const product = products?.find((product) => {
@@ -92,17 +80,19 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
     });
     if (product) {
       product.totalSold += order.qty;
-      //product.totalSold = product.totalSold + order.qty;
     }
     await product.save();
   });
-  //push order into user
+  // push order into user
   user.orders.push(order?._id);
   await user.save();
 
-  //make payment (stripe)
-  //convert order items to have same structure that stripe need
+  // make payment (stripe)
+  // convert order items to have same structure that stripe needs and apply coupon discounts
   const convertedOrders = orderItems.map((item) => {
+    const unitAmount = couponFound
+      ? Math.round(item?.price * (1 - discount / 100) * 100)
+      : item?.price * 100;
     return {
       price_data: {
         currency: "usd",
@@ -110,19 +100,22 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
           name: item?.name,
           description: item?.description,
         },
-        unit_amount: item?.price * 100,
+        unit_amount: unitAmount,
       },
       quantity: item?.qty,
     };
   });
+
+  // Calculate dynamic URLs pointing to the backend server rather than static frontend URL
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
   const session = await stripe.checkout.sessions.create({
     line_items: convertedOrders,
     metadata: {
       orderId: JSON.stringify(order?._id),
     },
     mode: "payment",
-    success_url: "http://localhost:3000/success",
-    cancel_url: "http://localhost:3000/cancel",
+    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/cancel`,
   });
   res.send({ url: session.url });
 });
