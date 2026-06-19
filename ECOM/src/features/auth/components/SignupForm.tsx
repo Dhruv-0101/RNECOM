@@ -139,3 +139,35 @@ const styles = StyleSheet.create({
 });
 
 export default SignupForm;
+/*
+### What is `Controller` in React Hook Form?
+
+`Controller` is a component that connects a **custom input component** (like your `Input`) to React Hook Form.
+
+```tsx
+<Controller
+  control={control}
+  name="fullname"
+  render={({ field: { onChange, onBlur, value } }) => (
+    <Input
+      value={value}
+      onChangeText={onChange}
+      onBlur={onBlur}
+    />
+  )}
+/>
+```
+
+**What it does:**
+
+* `value` → current field value
+* `onChange` → updates form state when the user types
+* `onBlur` → triggers blur/validation events
+* `name="fullname"` → field key in the form data
+
+Without `Controller`, React Hook Form cannot easily manage many custom input components.
+
+**In one line:**
+**`Controller` acts as a bridge between React Hook Form and your custom input component.**
+
+*/

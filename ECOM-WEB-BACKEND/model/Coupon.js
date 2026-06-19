@@ -54,12 +54,12 @@ CouponSchema.pre("validate", function (next) {
   next();
 });
 
-CouponSchema.pre("validate", function (next) {
-  if (this.startDate < Date.now()) {
-    next(new Error("Start date cannot be less than today"));
-  }
-  next();
-});
+// CouponSchema.pre("validate", function (next) {
+//   if (this.startDate < Date.now()) {
+//     next(new Error("Start date cannot be less than today"));
+//   }
+//   next();
+// });
 
 CouponSchema.pre("validate", function (next) {
   if (this.endDate < Date.now()) {

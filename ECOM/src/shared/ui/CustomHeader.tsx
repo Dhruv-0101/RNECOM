@@ -24,11 +24,11 @@ export function CustomHeader() {
   // Fetch active coupon code from backend Coupon API
   const { data: couponsData } = useCoupons();
   const coupons = couponsData?.coupons || [];
-  const activeCoupon = coupons.length > 0 ? coupons[0] : null;
+  const activeCoupon = coupons.length > 0 ? coupons[2] : null;
 
   const handleSearchChange = (text: string) => {
     dispatch(setSearchQuery(text));
-    
+
     // If user is on a non-searchable screen (like Cart, Profile, or inside wishlist),
     // redirect them to the home screen catalog page so they can see the filtered results.
     if (pathname !== "/" && pathname !== "/categories") {

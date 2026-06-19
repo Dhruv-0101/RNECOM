@@ -14,7 +14,7 @@ export default function TabsLayout() {
   const { user } = useSelector((state: RootState) => state.auth);
   const cartItems = useSelector((state: RootState) => state.cart.items);
   const totalCartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const isAdminUser = user && (user.isAdmin || user.email === "admin@gmail.com");
+  const isAdminUser = user && user.isAdmin;
 
   return (
     <Tabs
