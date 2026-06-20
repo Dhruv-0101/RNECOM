@@ -10,10 +10,18 @@ import { CustomHeader } from "@/src/shared/ui/CustomHeader";
 export default function TabsLayout() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  /*
+  insets.top: Padding required to stay below the status bar, notch (cameras), or dynamic island.
+insets.bottom: Padding required to stay above the physical home indicator bar (common on modern iPhones and Android devices).
+insets.left / insets.right: Padding for device margins (e.g., when the device is rotated in landscape mode).
+  */
 
   const { user } = useSelector((state: RootState) => state.auth);
   const cartItems = useSelector((state: RootState) => state.cart.items);
-  const totalCartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalCartCount = cartItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
   const isAdminUser = user && user.isAdmin;
 
   return (
@@ -26,8 +34,18 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: Platform.OS === "ios" ? (insets.bottom > 0 ? 84 : 60) : (60 + insets.bottom),
-          paddingBottom: Platform.OS === "ios" ? (insets.bottom > 0 ? insets.bottom - 4 : 8) : (8 + insets.bottom),
+          height:
+            Platform.OS === "ios"
+              ? insets.bottom > 0
+                ? 84
+                : 60
+              : 60 + insets.bottom,
+          paddingBottom:
+            Platform.OS === "ios"
+              ? insets.bottom > 0
+                ? insets.bottom - 4
+                : 8
+              : 8 + insets.bottom,
           paddingTop: 8,
         },
         headerStyle: {
@@ -45,7 +63,11 @@ export default function TabsLayout() {
           title: "Home",
           // headerTitle: "E-Shop",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
+            <Ionicons
+              name={focused ? "home" : "home-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -54,7 +76,11 @@ export default function TabsLayout() {
         options={{
           title: "Categories",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "grid" : "grid-outline"} size={22} color={color} />
+            <Ionicons
+              name={focused ? "grid" : "grid-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -69,7 +95,11 @@ export default function TabsLayout() {
         options={{
           title: "Cart",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "cart" : "cart-outline"} size={22} color={color} />
+            <Ionicons
+              name={focused ? "cart" : "cart-outline"}
+              size={22}
+              color={color}
+            />
           ),
           tabBarBadge: totalCartCount > 0 ? totalCartCount : undefined,
           tabBarBadgeStyle: {
@@ -85,7 +115,11 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />
@@ -95,7 +129,11 @@ export default function TabsLayout() {
           title: "Admin",
           href: isAdminUser ? "/admin" : null,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "shield-checkmark" : "shield-checkmark-outline"} size={22} color={color} />
+            <Ionicons
+              name={focused ? "shield-checkmark" : "shield-checkmark-outline"}
+              size={22}
+              color={color}
+            />
           ),
         }}
       />

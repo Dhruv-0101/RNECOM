@@ -15,9 +15,19 @@ import { AppDispatch } from "@/src/store/store";
 import { SplashScreen } from "@/src/shared/ui/SplashScreen";
 
 function RootLayoutNav() {
+  /*
+  The Problem: Checking the login token from device storage/API on startup takes a moment. 
+  Without a guard, the app immediately redirects users to /login before the check finishes, 
+  causing screen flashing.
+
+The Solution (isInitialized):
+While isInitialized is false, the app displays the Splash Screen and freezes all redirects.
+Once the startup check is done (guest or authenticated), isInitialized is set to true, hiding the 
+Splash Screen and letting routing guards execute safely without glitches.
+  */
   const { isAuthenticated, isInitialized } = useCurrentUser();
   const [showSplash, setShowSplash] = useState(true);
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useDispatch<AppDispatch>(); //koi bhi action ka dispatch
   const segments = useSegments();
   const router = useRouter();
   const { colors, theme } = useTheme();
@@ -41,6 +51,8 @@ function RootLayoutNav() {
             // ✅ Step D: If the profile is returned successfully, update the Redux store.
             // This marks the user as 'isAuthenticated' and saves their details.
             dispatch(setAuth({ user: profileData.user, token }));
+
+            // ⭐ ADD THIS: Fetch wishlist after successful auth
             try {
               const wishlistData = await wishlistApi.getWishlist();
               dispatch(setWishlist(wishlistData.wishlist || []));
@@ -144,5 +156,3 @@ export default function RootLayout() {
     </ReduxProvider>
   );
 }
-//hi
-//hi2

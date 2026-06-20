@@ -22,7 +22,9 @@ export const toggleWishlistCtrl = asyncHandler(async (req, res) => {
 
   if (isAlreadyWishlisted) {
     // Remove it
-    user.wishLists = user.wishLists.filter((id) => id.toString() !== productId.toString());
+    user.wishLists = user.wishLists.filter(
+      (id) => id.toString() !== productId.toString(),
+    );
   } else {
     // Add it
     user.wishLists.push(productId);
@@ -35,7 +37,9 @@ export const toggleWishlistCtrl = asyncHandler(async (req, res) => {
 
   res.json({
     status: "success",
-    message: isAlreadyWishlisted ? "Product removed from wishlist" : "Product added to wishlist",
+    message: isAlreadyWishlisted
+      ? "Product removed from wishlist"
+      : "Product added to wishlist",
     wishlist: updatedUser.wishLists,
   });
 });
@@ -43,6 +47,11 @@ export const toggleWishlistCtrl = asyncHandler(async (req, res) => {
 // @desc    Get user wishlist
 // @route   GET /api/v1/wishlist
 // @access  Private
+/*
+The Problem: If the wishlist is paginated (e.g. limit is 10), the app only loads the first 10 items. Any item after the 10th one will show an empty heart icon in the shop catalog, and the header badge count will be incorrect.
+Option 1 (Recommended): Remove pagination from getWishlistCtrl to return the full list. This keeps heart icons and badge counts 100% accurate.
+Option 2: Keep pagination, but request a high limit (like ?limit=1000) from the app during startup.
+*/
 export const getWishlistCtrl = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userAuthId).populate("wishLists");
   if (!user) {
@@ -57,7 +66,9 @@ export const getWishlistCtrl = asyncHandler(async (req, res) => {
   const endIndex = page * limit;
   const total = user.wishLists ? user.wishLists.length : 0;
 
-  const paginatedWishlist = user.wishLists ? user.wishLists.slice(startIndex, endIndex) : [];
+  const paginatedWishlist = user.wishLists
+    ? user.wishLists.slice(startIndex, endIndex)
+    : [];
 
   const pagination = {};
   if (endIndex < total) {
@@ -102,7 +113,9 @@ export const mergeWishlistCtrl = asyncHandler(async (req, res) => {
 
   // Merge local IDs with existing wishlist, removing duplicates
   const existingIds = user.wishLists.map((id) => id.toString());
-  const newIds = productIds.filter((id) => !existingIds.includes(id.toString()));
+  const newIds = productIds.filter(
+    (id) => !existingIds.includes(id.toString()),
+  );
 
   if (newIds.length > 0) {
     user.wishLists.push(...newIds);
