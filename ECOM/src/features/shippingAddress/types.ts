@@ -10,6 +10,7 @@ export interface ShippingAddress {
   postalCode: string;
   country: string;
   isDefault: boolean;
+  isProfileAddress?: boolean;
 }
 
 export interface ShippingAddressForm {

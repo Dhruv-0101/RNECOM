@@ -26,6 +26,7 @@ export const FONTS = {
     bold: "700" as const,
   },
   sizes: {
+    xxs: 10,
     xs: 12,
     sm: 14,
     md: 16,

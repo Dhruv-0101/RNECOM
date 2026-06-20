@@ -36,7 +36,16 @@ const shippingAddressSlice = createSlice({
       state,
       action: PayloadAction<{
         checked: boolean;
-        profile?: { firstName: string; lastName: string; phone: string };
+        profile?: {
+          firstName: string;
+          lastName: string;
+          phone: string;
+          streetAddress?: string;
+          city?: string;
+          state?: string;
+          postalCode?: string;
+          country?: string;
+        };
       }>
     ) => {
       const { checked, profile } = action.payload;
@@ -46,10 +55,20 @@ const shippingAddressSlice = createSlice({
         state.currentForm.recipientFirstName = profile.firstName;
         state.currentForm.recipientLastName = profile.lastName;
         state.currentForm.recipientPhone = profile.phone;
+        state.currentForm.streetAddress = profile.streetAddress || "";
+        state.currentForm.city = profile.city || "";
+        state.currentForm.state = profile.state || "";
+        state.currentForm.postalCode = profile.postalCode || "";
+        state.currentForm.country = profile.country || "";
       } else if (!checked) {
         state.currentForm.recipientFirstName = "";
         state.currentForm.recipientLastName = "";
         state.currentForm.recipientPhone = "";
+        state.currentForm.streetAddress = "";
+        state.currentForm.city = "";
+        state.currentForm.state = "";
+        state.currentForm.postalCode = "";
+        state.currentForm.country = "";
       }
     },
     saveCurrentFormAddress: (state) => {
@@ -79,6 +98,7 @@ const shippingAddressSlice = createSlice({
           state.addresses[index] = {
             ...newAddress,
             isDefault: state.addresses[index].isDefault,
+            isProfileAddress: state.addresses[index].isProfileAddress,
           };
         }
       }
@@ -150,6 +170,26 @@ const shippingAddressSlice = createSlice({
       state.currentForm = initialForm;
       state.selectedAddressId = null;
     },
+    syncProfileAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id" | "isProfileAddress">>) => {
+      const index = state.addresses.findIndex((a) => a.isProfileAddress);
+      if (index !== -1) {
+        state.addresses[index] = {
+          ...state.addresses[index],
+          ...action.payload,
+        };
+      } else {
+        const newId = "profile-default";
+        state.addresses.unshift({
+          ...action.payload,
+          id: newId,
+          isProfileAddress: true,
+          isDefault: state.addresses.length === 0,
+        });
+        if (!state.selectedAddressId) {
+          state.selectedAddressId = newId;
+        }
+      }
+    },
   },
 });
 
@@ -163,6 +203,7 @@ export const {
   deleteAddress,
   loadAddressIntoForm,
   resetFormState,
+  syncProfileAddress,
 } = shippingAddressSlice.actions;
 
 export default shippingAddressSlice.reducer;

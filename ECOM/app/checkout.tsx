@@ -13,6 +13,8 @@ import { AutoScrollingList } from "@/src/shared/ui/AutoScrollingList";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { RootState, AppDispatch } from "@/src/store/store";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
+import { authApi } from "@/src/features/auth/api/authApi";
+import { updateUser } from "@/src/features/auth/store/authSlice";
 import { ordersApi } from "@/src/features/orders/api/ordersApi";
 import { couponsApi } from "@/src/features/coupons/api/couponsApi";
 import { useCoupons } from "@/src/features/coupons/hooks/useCoupons";
@@ -22,10 +24,12 @@ import {
   updateFormFields,
   setOrderForMe,
   saveCurrentFormAddress,
+  addSavedAddress,
   selectAddress,
   deleteAddress,
   loadAddressIntoForm,
   resetFormState,
+  syncProfileAddress,
 } from "@/src/features/shippingAddress/store/shippingAddressSlice";
 
 export default function CheckoutScreen() {
@@ -49,6 +53,34 @@ export default function CheckoutScreen() {
   const [isEditingAddress, setIsEditingAddress] = useState(addresses.length === 0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+
+  // Synchronize and initialize Redux address list with user's profile shipping address
+  React.useEffect(() => {
+    if (user?.shippingAddress?.address) {
+      const names = (user.fullname || "").trim().split(/\s+/);
+      const firstName = names[0] || "";
+      const lastName = names.slice(1).join(" ") || "";
+      
+      const profileAddr = {
+        recipientFirstName: user.shippingAddress.firstName || firstName,
+        recipientLastName: user.shippingAddress.lastName || lastName,
+        recipientPhone: user.shippingAddress.phone || "",
+        streetAddress: user.shippingAddress.address || "",
+        city: user.shippingAddress.city || "",
+        state: user.shippingAddress.province || "",
+        postalCode: user.shippingAddress.postalCode || "",
+        country: user.shippingAddress.country || "",
+        label: "Home" as const,
+        isDefault: addresses.length === 0,
+      };
+      
+      dispatch(syncProfileAddress(profileAddr));
+      
+      if (addresses.length === 0) {
+        setIsEditingAddress(false);
+      }
+    }
+  }, [user, dispatch]);
 
   // Coupon states
   const { data: couponsData } = useCoupons();
@@ -118,9 +150,14 @@ export default function CheckoutScreen() {
         setOrderForMe({
           checked: true,
           profile: {
-            firstName,
-            lastName,
+            firstName: user.shippingAddress?.firstName || firstName,
+            lastName: user.shippingAddress?.lastName || lastName,
             phone: user.shippingAddress?.phone || "",
+            streetAddress: user.shippingAddress?.address || "",
+            city: user.shippingAddress?.city || "",
+            state: user.shippingAddress?.province || "",
+            postalCode: user.shippingAddress?.postalCode || "",
+            country: user.shippingAddress?.country || "",
           },
         })
       );
@@ -129,14 +166,38 @@ export default function CheckoutScreen() {
     }
   };
 
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
     if (!isValid) {
       setShowValidationErrors(true);
       return;
     }
+
+    const isProfileAddr = selectedAddressId === "profile-default" || currentForm.isOrderForMe || addresses.length === 0;
+
     dispatch(saveCurrentFormAddress());
     setIsEditingAddress(false);
     setShowValidationErrors(false);
+
+    if (isProfileAddr) {
+      const profileData = {
+        firstName: currentForm.recipientFirstName,
+        lastName: currentForm.recipientLastName,
+        address: currentForm.streetAddress,
+        city: currentForm.city,
+        province: currentForm.state,
+        postalCode: currentForm.postalCode,
+        country: currentForm.country,
+        phone: currentForm.recipientPhone,
+      };
+      try {
+        const response = await authApi.updateShippingAddress(profileData);
+        if (response?.user) {
+          dispatch(updateUser(response.user));
+        }
+      } catch (err) {
+        console.log("Failed to auto-sync address update to profile:", err);
+      }
+    }
   };
 
   const handleEditAddress = (addressId: string) => {

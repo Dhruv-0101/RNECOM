@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { ReduxProvider } from "@/src/shared/providers/ReduxProvider";
 import { QueryProvider } from "@/src/shared/providers/QueryProvider";
 import { ThemeProvider, useTheme } from "@/src/shared/providers/ThemeProvider";
@@ -12,8 +11,8 @@ import { authApi } from "@/src/features/auth/api/authApi";
 import { wishlistApi } from "@/src/features/wishlist/api/wishlistApi";
 import { setWishlist } from "@/src/features/wishlist/store/wishlistSlice";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
-import { Text } from "@/src/shared/ui/Text";
 import { AppDispatch } from "@/src/store/store";
+import { SplashScreen } from "@/src/shared/ui/SplashScreen";
 
 function RootLayoutNav() {
   const { isAuthenticated, isInitialized } = useCurrentUser();
@@ -120,38 +119,7 @@ function RootLayoutNav() {
 
   // Render Premium Brand Splash Screen
   if (!isInitialized || showSplash) {
-    return (
-      <View
-        style={[styles.splashContainer, { backgroundColor: colors.background }]}
-      >
-        <StatusBar style={theme === "dark" ? "light" : "dark"} />
-        <View style={styles.brandContainer}>
-          <View
-            style={[styles.logoBadge, { backgroundColor: colors.primaryLight }]}
-          >
-            <Text variant="xxxl" weight="bold" color={colors.primary}>
-              🛍️
-            </Text>
-          </View>
-          <Text
-            variant="xxxl"
-            weight="bold"
-            color={colors.primary}
-            style={styles.brandText}
-          >
-            E-Shop
-          </Text>
-          <Text variant="sm" color={colors.textMuted}>
-            Your Premium E-Commerce Hub
-          </Text>
-        </View>
-        <ActivityIndicator
-          size="small"
-          color={colors.primary}
-          style={styles.spinner}
-        />
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return (
@@ -164,35 +132,6 @@ function RootLayoutNav() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  splashContainer: {
-    flex: 1,
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  brandContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  brandText: {
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  spinner: {
-    marginTop: "auto",
-  },
-});
 
 export default function RootLayout() {
   return (
