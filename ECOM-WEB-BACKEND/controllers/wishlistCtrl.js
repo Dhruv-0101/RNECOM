@@ -50,10 +50,36 @@ export const getWishlistCtrl = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
+  // pagination
+  const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+  const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  const total = user.wishLists ? user.wishLists.length : 0;
+
+  const paginatedWishlist = user.wishLists ? user.wishLists.slice(startIndex, endIndex) : [];
+
+  const pagination = {};
+  if (endIndex < total) {
+    pagination.next = {
+      page: page + 1,
+      limit,
+    };
+  }
+  if (startIndex > 0) {
+    pagination.prev = {
+      page: page - 1,
+      limit,
+    };
+  }
+
   res.json({
     status: "success",
+    total,
+    results: paginatedWishlist.length,
+    pagination,
     message: "Wishlist fetched successfully",
-    wishlist: user.wishLists,
+    wishlist: paginatedWishlist,
   });
 });
 

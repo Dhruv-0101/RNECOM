@@ -30,9 +30,36 @@ export const createCategoryCtrl = asyncHandler(async (req, res) => {
 // @access  Public
 
 export const getAllCategoriesCtrl = asyncHandler(async (req, res) => {
-  const categories = await Category.find();
+  // pagination
+  const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+  const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  const total = await Category.countDocuments();
+
+  const categories = await Category.find()
+    .skip(startIndex)
+    .limit(limit);
+
+  const pagination = {};
+  if (endIndex < total) {
+    pagination.next = {
+      page: page + 1,
+      limit,
+    };
+  }
+  if (startIndex > 0) {
+    pagination.prev = {
+      page: page - 1,
+      limit,
+    };
+  }
+
   res.json({
     status: "success",
+    total,
+    results: categories.length,
+    pagination,
     message: "Categories fetched successfully",
     categories,
   });

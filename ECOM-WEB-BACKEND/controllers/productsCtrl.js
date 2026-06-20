@@ -163,7 +163,7 @@ export const getProductsCtrl = asyncHandler(async (req, res) => {
   }
 
   //await the query
-  const products = await productQuery.populate("reviews");
+  const products = await productQuery.populate({ path: "reviews", select: "rating" });
   res.json({
     status: "success",
     total,

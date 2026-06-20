@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useDispatch } from "react-redux";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { Text } from "@/src/shared/ui/Text";
@@ -39,8 +40,9 @@ if (
 }
 
 export default function Profile() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
 
   const { user, isAuthenticated } = useCurrentUser();
@@ -198,12 +200,12 @@ export default function Profile() {
   if (!isAuthenticated || !user) {
     return (
       <View style={[styles.guestContainer, { backgroundColor: colors.background }]}>
-        <Card style={styles.guestCard}>
-          <View style={[styles.guestIconContainer, { backgroundColor: colors.primaryLight }]}>
+        <Card style={[styles.guestCard, { borderColor: colors.border }]}>
+          <View style={[styles.guestIconContainer, { backgroundColor: isDark ? "rgba(99, 102, 241, 0.12)" : "#eff6ff" }]}>
             <Ionicons name="person-circle-outline" size={64} color={colors.primary} />
           </View>
           <Text variant="xl" weight="bold" align="center" style={styles.guestTitle}>
-            Unlock Your Dashboard
+            Unlock Your Profile
           </Text>
           <Text
             variant="sm"
@@ -211,13 +213,13 @@ export default function Profile() {
             align="center"
             style={styles.guestDescription}
           >
-            Sign in to track your order history, manage your shipping addresses, and enjoy a faster, personalized checkout experience.
+            Sign in to track orders, manage default shipping locations, and enjoy a faster, personalized checkout experience.
           </Text>
           <Button
             title="Sign In / Register"
             onPress={() => router.push("/login")}
             icon="log-in-outline"
-            style={styles.guestButton}
+            style={{ width: "100%", height: 48, borderRadius: 24 }}
           />
         </Card>
       </View>
@@ -228,383 +230,401 @@ export default function Profile() {
   const isProfileLoading = isLoading && !refreshing;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing || isFetching}
-          onRefresh={handleRefresh}
-          colors={[colors.primary]}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      {/* 1. Header Profile block */}
-      <Card style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <View style={[styles.avatar, { backgroundColor: colors.primaryLight }]}>
-            <Text variant="lg" weight="bold" color={colors.primary}>
-              {user.fullname ? user.fullname.split(" ").map((n) => n[0]).join("").toUpperCase() : "U"}
-            </Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Safe Area Spacer at the top */}
+      <View style={{ height: insets.top, backgroundColor: colors.surface }} />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing || isFetching}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {/* 1. Header Profile block */}
+        <Card style={[styles.headerCard, { borderColor: colors.border }]}>
+          <View style={styles.headerRow}>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <Text variant="lg" weight="bold" color="#ffffff">
+                {user.fullname ? user.fullname.split(" ").map((n) => n[0]).join("").toUpperCase() : "U"}
+              </Text>
+            </View>
+            <View style={styles.userInfo}>
+              <View style={styles.nameRow}>
+                <Text variant="lg" weight="bold" numberOfLines={1}>
+                  {user.fullname}
+                </Text>
+                <View style={styles.verifyBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                </View>
+              </View>
+              <Text variant="xs" color={colors.textMuted} numberOfLines={1}>
+                {user.email}
+              </Text>
+            </View>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.actionBtnHeader, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#f1f5f9", marginRight: SPACING.sm }]}
+                onPress={toggleTheme}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={isDark ? "sunny" : "moon"} size={16} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtnHeader, { backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "#fef2f2" }]}
+                onPress={handleLogoutPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="log-out-outline" size={16} color={colors.error} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.userInfo}>
-            <Text variant="lg" weight="bold" numberOfLines={1}>
-              {user.fullname}
-            </Text>
-            <Text variant="xs" color={colors.textMuted} numberOfLines={1}>
-              {user.email}
-            </Text>
-          </View>
+        </Card>
+
+        {/* 2. Segmented tab selection control */}
+        <View style={[styles.tabContainer, { backgroundColor: colors.inputBg }]}>
           <TouchableOpacity
-            style={[styles.logoutBtn, { borderColor: colors.border }]}
-            onPress={handleLogoutPress}
-            activeOpacity={0.7}
+            style={[
+              styles.tabButton,
+              activeTab === "orders" && [styles.tabButtonActive, { backgroundColor: colors.surface }],
+            ]}
+            onPress={() => setActiveTab("orders")}
+            activeOpacity={0.8}
           >
-            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+            <Ionicons
+              name="receipt-outline"
+              size={16}
+              color={activeTab === "orders" ? colors.primary : colors.textMuted}
+            />
+            <Text
+              variant="sm"
+              weight={activeTab === "orders" ? "semibold" : "medium"}
+              color={activeTab === "orders" ? colors.text : colors.textMuted}
+              style={{ marginLeft: 6 }}
+            >
+              My Orders
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "address" && [styles.tabButtonActive, { backgroundColor: colors.surface }],
+            ]}
+            onPress={() => setActiveTab("address")}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="location-outline"
+              size={16}
+              color={activeTab === "address" ? colors.primary : colors.textMuted}
+            />
+            <Text
+              variant="sm"
+              weight={activeTab === "address" ? "semibold" : "medium"}
+              color={activeTab === "address" ? colors.text : colors.textMuted}
+              style={{ marginLeft: 6 }}
+            >
+              Address Book
+            </Text>
           </TouchableOpacity>
         </View>
-      </Card>
 
-      {/* 2. Segmented tab selection control */}
-      <View style={[styles.tabContainer, { backgroundColor: colors.inputBg }]}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === "orders" && [styles.tabButtonActive, { backgroundColor: colors.surface }],
-          ]}
-          onPress={() => setActiveTab("orders")}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="receipt-outline"
-            size={18}
-            color={activeTab === "orders" ? colors.primary : colors.textMuted}
-          />
-          <Text
-            variant="sm"
-            weight={activeTab === "orders" ? "semibold" : "medium"}
-            color={activeTab === "orders" ? colors.text : colors.textMuted}
-            style={{ marginLeft: SPACING.xs }}
-          >
-            My Orders
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === "address" && [styles.tabButtonActive, { backgroundColor: colors.surface }],
-          ]}
-          onPress={() => setActiveTab("address")}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="location-outline"
-            size={18}
-            color={activeTab === "address" ? colors.primary : colors.textMuted}
-          />
-          <Text
-            variant="sm"
-            weight={activeTab === "address" ? "semibold" : "medium"}
-            color={activeTab === "address" ? colors.text : colors.textMuted}
-            style={{ marginLeft: SPACING.xs }}
-          >
-            Address Book
-          </Text>
-        </TouchableOpacity>
-      </View>
+        {/* 3. Tab contents block */}
+        {isProfileLoading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.md }}>
+              Loading your profile details...
+            </Text>
+          </View>
+        ) : activeTab === "orders" ? (
+          // ORDERS LIST
+          <View>
+            {!user.orders || user.orders.length === 0 ? (
+              <Card style={[styles.emptyCard, { borderColor: colors.border }]}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#f8fafc" }]}>
+                  <Ionicons name="receipt-outline" size={44} color={colors.textMuted} />
+                </View>
+                <Text variant="md" weight="bold" style={styles.emptyTitle}>
+                  No Orders Yet
+                </Text>
+                <Text variant="sm" color={colors.textMuted} align="center" style={styles.emptyText}>
+                  All details concerning your shipping history and package tracking will display here once you make a purchase.
+                </Text>
+                <Button
+                  title="Shop Trending Catalog"
+                  onPress={() => router.push("/")}
+                  icon="cart-outline"
+                  style={{ height: 44, borderRadius: 22 }}
+                />
+              </Card>
+            ) : (
+              (user.orders as PopulatedOrder[])
+                .filter((order) => order && typeof order === "object" && order._id)
+                .map((order) => {
+                  const isExpanded = expandedOrderId === order._id;
+                  const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  }) : "N/A";
+                  const paymentColors = getStatusColors(order.paymentStatus);
+                  const shippingColors = getStatusColors(order.status);
 
-      {/* 3. Tab contents block */}
-      {isProfileLoading ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.md }}>
-            Loading your profile...
-          </Text>
-        </View>
-      ) : activeTab === "orders" ? (
-        // ORDERS LIST
-        <View>
-          {!user.orders || user.orders.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
-              <Text variant="md" weight="semibold" style={styles.emptyTitle}>
-                No Orders Yet
-              </Text>
-              <Text variant="sm" color={colors.textMuted} align="center" style={styles.emptyText}>
-                When you make a purchase, your complete order history and tracking info will show up here.
-              </Text>
-              <Button
-                title="Start Shopping"
-                onPress={() => router.push("/")}
-                icon="cart-outline"
-                style={{ marginTop: SPACING.md }}
-              />
-            </Card>
-          ) : (
-            // Orders loop (using array iteration since we scroll inside ScrollView)
-            (user.orders as PopulatedOrder[])
-              .filter((order) => order && typeof order === "object" && order._id)
-              .map((order) => {
-                const isExpanded = expandedOrderId === order._id;
-                const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                }) : "N/A";
-                const paymentColors = getStatusColors(order.paymentStatus);
-                const shippingColors = getStatusColors(order.status);
-
-              return (
-                <Card key={order._id} style={styles.orderCard}>
-                  <TouchableOpacity
-                    onPress={() => toggleOrderExpand(order._id)}
-                    activeOpacity={0.9}
-                    style={styles.orderHeader}
-                  >
-                    <View style={styles.orderHeaderLeft}>
-                      <Text variant="md" weight="bold">
-                        #{order.orderNumber}
-                      </Text>
-                      <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                        Placed on {dateStr}
-                      </Text>
-                    </View>
-                    <View style={styles.orderHeaderRight}>
-                      <Text variant="md" weight="bold" color={colors.primary}>
-                        ${order.totalPrice.toFixed(2)}
-                      </Text>
-                      <Ionicons
-                        name={isExpanded ? "chevron-up" : "chevron-down"}
-                        size={20}
-                        color={colors.textMuted}
-                        style={{ marginLeft: SPACING.xs }}
-                      />
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Status Badges Row */}
-                  <View style={styles.badgesRow}>
-                    <View style={[styles.badge, { backgroundColor: paymentColors.bg }]}>
-                      <Text variant="xs" weight="semibold" color={paymentColors.text}>
-                        Payment: {order.paymentStatus}
-                      </Text>
-                    </View>
-                    <View style={[styles.badge, { backgroundColor: shippingColors.bg }]}>
-                      <Text variant="xs" weight="semibold" color={shippingColors.text}>
-                        Shipment: {order.status}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Expanded Order Content */}
-                  {isExpanded && (
-                    <View style={styles.expandedContent}>
-                      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                      
-                      {/* Products List */}
-                      <Text variant="sm" weight="semibold" style={styles.sectionTitle}>
-                        Items Purchased
-                      </Text>
-                      {order.orderItems?.map((item, index) => (
-                        <View key={item._id || index} style={styles.itemRow}>
-                          <View style={styles.itemLeft}>
-                            <Text variant="sm" weight="medium">
-                              {item.name}
-                            </Text>
-                            {item.description && (
-                              <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                                {item.description}
-                              </Text>
-                            )}
-                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                              {item.qty} x ${item.price.toFixed(2)}
-                            </Text>
-                          </View>
-                          <Text variant="sm" weight="semibold">
-                            ${(item.qty * item.price).toFixed(2)}
+                  return (
+                    <Card key={order._id} style={[styles.orderCard, { borderColor: colors.border }]}>
+                      <TouchableOpacity
+                        onPress={() => toggleOrderExpand(order._id)}
+                        activeOpacity={0.9}
+                        style={styles.orderHeader}
+                      >
+                        <View style={styles.orderHeaderLeft}>
+                          <Text variant="md" weight="bold">
+                            #{order.orderNumber}
+                          </Text>
+                          <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                            Placed {dateStr}
                           </Text>
                         </View>
-                      ))}
+                        <View style={styles.orderHeaderRight}>
+                          <Text variant="md" weight="bold" color={colors.primary}>
+                            ${order.totalPrice.toFixed(2)}
+                          </Text>
+                          <Ionicons
+                            name={isExpanded ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={colors.textMuted}
+                            style={{ marginLeft: SPACING.xs }}
+                          />
+                        </View>
+                      </TouchableOpacity>
 
-                      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                      {/* Delivery Address Details */}
-                      <Text variant="sm" weight="semibold" style={styles.sectionTitle}>
-                        Shipping Details
-                      </Text>
-                      <View style={[styles.addressDetails, { backgroundColor: colors.inputBg }]}>
-                        <Text variant="sm" weight="medium">
-                          {order.shippingAddress?.firstName} {order.shippingAddress?.lastName}
-                        </Text>
-                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 4 }}>
-                          {order.shippingAddress?.address}
-                        </Text>
-                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                          {order.shippingAddress?.city}, {order.shippingAddress?.province} {order.shippingAddress?.postalCode}
-                        </Text>
-                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                          {order.shippingAddress?.country}
-                        </Text>
-                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
-                          📞 {order.shippingAddress?.phone}
-                        </Text>
+                      {/* Status Badges Row */}
+                      <View style={styles.badgesRow}>
+                        <View style={[styles.statusBadge, { backgroundColor: paymentColors.bg }]}>
+                          <Text variant="xs" weight="bold" color={paymentColors.text}>
+                            Payment: {order.paymentStatus?.toUpperCase() || "PENDING"}
+                          </Text>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: shippingColors.bg }]}>
+                          <Text variant="xs" weight="bold" color={shippingColors.text}>
+                            Status: {order.status?.toUpperCase() || "PROCESSING"}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  )}
-                </Card>
-              );
-            })
-          )}
-        </View>
-      ) : (
-        // ADDRESS BOOK
-        <View>
-          {!isEditingAddress && user.hasShippingAddress ? (
-            // Address Info display card
-            <Card style={styles.addressCard}>
-              <View style={styles.addressCardHeader}>
-                <View style={styles.addressIconWrapper}>
-                  <Ionicons name="location" size={24} color={colors.primary} />
+
+                      {/* Collapsible expanded details */}
+                      {isExpanded && (
+                        <View style={styles.expandedContent}>
+                          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                          
+                          <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
+                            ITEMS PURCHASED
+                          </Text>
+                          {order.orderItems?.map((item, index) => (
+                            <View key={item._id || index} style={styles.itemRow}>
+                              <View style={styles.itemLeft}>
+                                <Text variant="sm" weight="semibold">
+                                  {item.name}
+                                </Text>
+                                {item.description ? (
+                                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 1 }}>
+                                    {item.description}
+                                  </Text>
+                                ) : null}
+                                <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                  {item.qty} x ${item.price.toFixed(2)}
+                                </Text>
+                              </View>
+                              <Text variant="sm" weight="bold">
+                                ${(item.qty * item.price).toFixed(2)}
+                              </Text>
+                            </View>
+                          ))}
+
+                          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                          <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
+                            DELIVERY ADDRESS
+                          </Text>
+                          <View style={[styles.addressDetails, { backgroundColor: colors.inputBg }]}>
+                            <Text variant="sm" weight="semibold">
+                              {order.shippingAddress?.recipientFirstName || order.shippingAddress?.firstName} {order.shippingAddress?.recipientLastName || order.shippingAddress?.lastName}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 4 }}>
+                              {order.shippingAddress?.streetAddress || order.shippingAddress?.address}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                              {order.shippingAddress?.city}, {order.shippingAddress?.state || order.shippingAddress?.province} {order.shippingAddress?.postalCode}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                              {order.shippingAddress?.country}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
+                              📞 {order.shippingAddress?.recipientPhone || order.shippingAddress?.phone}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </Card>
+                  );
+                })
+            )}
+          </View>
+        ) : (
+          // ADDRESS BOOK
+          <View>
+            {!isEditingAddress && user.hasShippingAddress ? (
+              <Card style={[styles.addressCard, { borderColor: colors.border }]}>
+                <View style={styles.addressCardHeader}>
+                  <View style={[styles.addressIconWrapper, { backgroundColor: isDark ? "rgba(99, 102, 241, 0.15)" : "#e0e7ff" }]}>
+                    <Ionicons name="location" size={20} color={colors.primary} />
+                  </View>
+                  <Text variant="md" weight="bold" style={{ flex: 1, marginLeft: SPACING.sm }}>
+                    Primary Shipping Location
+                  </Text>
                 </View>
-                <Text variant="md" weight="bold" style={{ flex: 1, marginLeft: SPACING.sm }}>
-                  Default Shipping Address
-                </Text>
-              </View>
 
-              <View style={[styles.addressViewContent, { backgroundColor: colors.inputBg }]}>
-                <Text variant="md" weight="semibold">
-                  {user.shippingAddress?.firstName} {user.shippingAddress?.lastName}
-                </Text>
-                <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.xs }}>
-                  {user.shippingAddress?.address}
-                </Text>
-                <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
-                  {user.shippingAddress?.city}, {user.shippingAddress?.province} {user.shippingAddress?.postalCode}
-                </Text>
-                <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
-                  {user.shippingAddress?.country}
-                </Text>
-                <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.sm }}>
-                  📞 {user.shippingAddress?.phone}
-                </Text>
-              </View>
+                <View style={[styles.addressViewContent, { backgroundColor: colors.inputBg }]}>
+                  <Text variant="md" weight="semibold">
+                    {user.shippingAddress?.firstName} {user.shippingAddress?.lastName}
+                  </Text>
+                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.xs }}>
+                    {user.shippingAddress?.address}
+                  </Text>
+                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
+                    {user.shippingAddress?.city}, {user.shippingAddress?.province} {user.shippingAddress?.postalCode}
+                  </Text>
+                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
+                    {user.shippingAddress?.country}
+                  </Text>
+                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.sm }}>
+                    📞 {user.shippingAddress?.phone}
+                  </Text>
+                </View>
 
-              <Button
-                title="Edit Address"
-                onPress={() => setIsEditingAddress(true)}
-                icon="create-outline"
-                variant="outline"
-                style={{ marginTop: SPACING.md }}
-              />
-            </Card>
-          ) : (
-            // Edit Address Form
-            <Card style={styles.formCard}>
-              <Text variant="md" weight="bold" style={{ marginBottom: SPACING.md }}>
-                {user.hasShippingAddress ? "Edit Shipping Address" : "Save Shipping Address"}
-              </Text>
-              
-              <View style={styles.formRow}>
-                <Input
-                  label="First Name"
-                  placeholder="John"
-                  value={addressForm.firstName}
-                  onChangeText={(val) => handleInputChange("firstName", val)}
-                  error={formErrors.firstName}
-                  containerStyle={{ flex: 1, marginRight: SPACING.xs }}
-                />
-                <Input
-                  label="Last Name"
-                  placeholder="Doe"
-                  value={addressForm.lastName}
-                  onChangeText={(val) => handleInputChange("lastName", val)}
-                  error={formErrors.lastName}
-                  containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
-                />
-              </View>
-
-              <Input
-                label="Street Address"
-                placeholder="123 Main St, Apt 4B"
-                value={addressForm.address}
-                onChangeText={(val) => handleInputChange("address", val)}
-                error={formErrors.address}
-              />
-
-              <View style={styles.formRow}>
-                <Input
-                  label="City"
-                  placeholder="Toronto"
-                  value={addressForm.city}
-                  onChangeText={(val) => handleInputChange("city", val)}
-                  error={formErrors.city}
-                  containerStyle={{ flex: 1, marginRight: SPACING.xs }}
-                />
-                <Input
-                  label="Province / State"
-                  placeholder="Ontario"
-                  value={addressForm.province}
-                  onChangeText={(val) => handleInputChange("province", val)}
-                  error={formErrors.province}
-                  containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <Input
-                  label="Postal / ZIP Code"
-                  placeholder="M4B 1B3"
-                  value={addressForm.postalCode}
-                  onChangeText={(val) => handleInputChange("postalCode", val)}
-                  error={formErrors.postalCode}
-                  containerStyle={{ flex: 1, marginRight: SPACING.xs }}
-                />
-                <Input
-                  label="Country"
-                  placeholder="Canada"
-                  value={addressForm.country}
-                  onChangeText={(val) => handleInputChange("country", val)}
-                  error={formErrors.country}
-                  containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
-                />
-              </View>
-
-              <Input
-                label="Phone Number"
-                placeholder="+1 416-555-0199"
-                keyboardType="phone-pad"
-                value={addressForm.phone}
-                onChangeText={(val) => handleInputChange("phone", val)}
-                error={formErrors.phone}
-              />
-
-              <View style={styles.formActions}>
                 <Button
-                  title="Save Address"
-                  onPress={handleSaveAddress}
-                  loading={isSavingAddress}
-                  disabled={isSavingAddress}
-                  icon="checkmark-outline"
-                  style={styles.saveBtn}
+                  title="Modify Details"
+                  onPress={() => setIsEditingAddress(true)}
+                  icon="create-outline"
+                  variant="outline"
+                  style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
                 />
-                {user.hasShippingAddress && (
-                  <Button
-                    title="Cancel"
-                    onPress={() => {
-                      setIsEditingAddress(false);
-                      setFormErrors({});
-                    }}
-                    variant="text"
-                    style={styles.cancelBtn}
+              </Card>
+            ) : (
+              <Card style={[styles.formCard, { borderColor: colors.border }]}>
+                <Text variant="md" weight="bold" style={{ marginBottom: SPACING.md }}>
+                  {user.hasShippingAddress ? "Modify Shipping Details" : "Setup Shipping Location"}
+                </Text>
+                
+                <View style={styles.formRow}>
+                  <Input
+                    label="First Name"
+                    placeholder="John"
+                    value={addressForm.firstName}
+                    onChangeText={(val) => handleInputChange("firstName", val)}
+                    error={formErrors.firstName}
+                    containerStyle={{ flex: 1, marginRight: SPACING.xs }}
                   />
-                )}
-              </View>
-            </Card>
-          )}
-        </View>
-      )}
-    </ScrollView>
+                  <Input
+                    label="Last Name"
+                    placeholder="Doe"
+                    value={addressForm.lastName}
+                    onChangeText={(val) => handleInputChange("lastName", val)}
+                    error={formErrors.lastName}
+                    containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
+                  />
+                </View>
+
+                <Input
+                  label="Street Address"
+                  placeholder="123 Main St, Apt 4B"
+                  value={addressForm.address}
+                  onChangeText={(val) => handleInputChange("address", val)}
+                  error={formErrors.address}
+                />
+
+                <View style={styles.formRow}>
+                  <Input
+                    label="City"
+                    placeholder="Toronto"
+                    value={addressForm.city}
+                    onChangeText={(val) => handleInputChange("city", val)}
+                    error={formErrors.city}
+                    containerStyle={{ flex: 1, marginRight: SPACING.xs }}
+                  />
+                  <Input
+                    label="Province / State"
+                    placeholder="Ontario"
+                    value={addressForm.province}
+                    onChangeText={(val) => handleInputChange("province", val)}
+                    error={formErrors.province}
+                    containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
+                  />
+                </View>
+
+                <View style={styles.formRow}>
+                  <Input
+                    label="Postal / ZIP Code"
+                    placeholder="M4B 1B3"
+                    value={addressForm.postalCode}
+                    onChangeText={(val) => handleInputChange("postalCode", val)}
+                    error={formErrors.postalCode}
+                    containerStyle={{ flex: 1, marginRight: SPACING.xs }}
+                  />
+                  <Input
+                    label="Country"
+                    placeholder="Canada"
+                    value={addressForm.country}
+                    onChangeText={(val) => handleInputChange("country", val)}
+                    error={formErrors.country}
+                    containerStyle={{ flex: 1, marginLeft: SPACING.xs }}
+                  />
+                </View>
+
+                <Input
+                  label="Phone Number"
+                  placeholder="+1 416-555-0199"
+                  keyboardType="phone-pad"
+                  value={addressForm.phone}
+                  onChangeText={(val) => handleInputChange("phone", val)}
+                  error={formErrors.phone}
+                />
+
+                <View style={styles.formActions}>
+                  <Button
+                    title="Save Changes"
+                    onPress={handleSaveAddress}
+                    loading={isSavingAddress}
+                    disabled={isSavingAddress}
+                    icon="checkmark-outline"
+                    style={{ height: 44, borderRadius: 22 }}
+                  />
+                  {user.hasShippingAddress && (
+                    <Button
+                      title="Cancel"
+                      onPress={() => {
+                        setIsEditingAddress(false);
+                        setFormErrors({});
+                      }}
+                      variant="text"
+                      style={{ height: 44, borderRadius: 22 }}
+                    />
+                  )}
+                </View>
+              </Card>
+            )}
+          </View>
+        )}
+
+
+      </ScrollView>
+    </View>
   );
 }
 
@@ -618,26 +638,25 @@ const styles = StyleSheet.create({
   guestCard: {
     width: "100%",
     alignItems: "center",
-    paddingVertical: SPACING.xxl,
+    paddingVertical: SPACING.xxl * 1.2,
     paddingHorizontal: SPACING.xl,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   guestIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: SPACING.lg,
   },
   guestTitle: {
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   guestDescription: {
     marginBottom: SPACING.xl,
     lineHeight: 20,
-  },
-  guestButton: {
-    marginTop: SPACING.xs,
   },
   container: {
     flex: 1,
@@ -649,15 +668,17 @@ const styles = StyleSheet.create({
   headerCard: {
     marginBottom: SPACING.lg,
     padding: SPACING.md,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -666,11 +687,18 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.md,
     justifyContent: "center",
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  verifyBadge: {
+    marginLeft: 6,
+  },
   logoutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.sm,
-    borderWidth: 1,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -704,18 +732,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: SPACING.xxxl,
     paddingHorizontal: SPACING.xl,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: SPACING.md,
   },
   emptyTitle: {
-    marginTop: SPACING.md,
     marginBottom: SPACING.xs,
   },
   emptyText: {
     lineHeight: 20,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   orderCard: {
     marginBottom: SPACING.md,
     padding: SPACING.md,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   orderHeader: {
     flexDirection: "row",
@@ -734,16 +773,16 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     gap: SPACING.xs,
   },
-  badge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.xs,
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.sm,
   },
   expandedContent: {
     marginTop: SPACING.md,
   },
   divider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     marginVertical: SPACING.md,
   },
   sectionTitle: {
@@ -766,6 +805,8 @@ const styles = StyleSheet.create({
   },
   addressCard: {
     padding: SPACING.lg,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   addressCardHeader: {
     flexDirection: "row",
@@ -773,9 +814,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   addressIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -785,6 +826,8 @@ const styles = StyleSheet.create({
   },
   formCard: {
     padding: SPACING.lg,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   formRow: {
     flexDirection: "row",
@@ -792,12 +835,45 @@ const styles = StyleSheet.create({
   },
   formActions: {
     marginTop: SPACING.md,
-    gap: SPACING.xs,
+    gap: SPACING.sm,
   },
-  saveBtn: {
-    width: "100%",
+  settingsCard: {
+    padding: SPACING.md,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: SPACING.xl,
   },
-  cancelBtn: {
-    width: "100%",
+  settingsTitle: {
+    marginBottom: SPACING.sm,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  settingsRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingsIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: SPACING.sm,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  actionBtnHeader: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

@@ -40,9 +40,36 @@ export const createCouponCtrl = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 
 export const getAllCouponsCtrl = asyncHandler(async (req, res) => {
-  const coupons = await Coupon.find();
+  // pagination
+  const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+  const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  const total = await Coupon.countDocuments();
+
+  const coupons = await Coupon.find()
+    .skip(startIndex)
+    .limit(limit);
+
+  const pagination = {};
+  if (endIndex < total) {
+    pagination.next = {
+      page: page + 1,
+      limit,
+    };
+  }
+  if (startIndex > 0) {
+    pagination.prev = {
+      page: page - 1,
+      limit,
+    };
+  }
+
   res.status(200).json({
     status: "success",
+    total,
+    results: coupons.length,
+    pagination,
     message: "All coupons",
     coupons,
   });

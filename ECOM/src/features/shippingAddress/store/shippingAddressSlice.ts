@@ -1,0 +1,168 @@
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { ShippingAddress, ShippingAddressForm, ShippingAddressState } from "../types";
+
+const initialForm: ShippingAddressForm = {
+  recipientFirstName: "",
+  recipientLastName: "",
+  recipientPhone: "",
+  streetAddress: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: "",
+  label: "Home",
+  isOrderForMe: false,
+};
+
+const initialState: ShippingAddressState = {
+  addresses: [],
+  selectedAddressId: null,
+  currentForm: initialForm,
+  loading: false,
+  error: null,
+};
+
+const shippingAddressSlice = createSlice({
+  name: "shippingAddress",
+  initialState,
+  reducers: {
+    updateFormFields: (state, action: PayloadAction<Partial<ShippingAddressForm>>) => {
+      state.currentForm = {
+        ...state.currentForm,
+        ...action.payload,
+      };
+    },
+    setOrderForMe: (
+      state,
+      action: PayloadAction<{
+        checked: boolean;
+        profile?: { firstName: string; lastName: string; phone: string };
+      }>
+    ) => {
+      const { checked, profile } = action.payload;
+      state.currentForm.isOrderForMe = checked;
+
+      if (checked && profile) {
+        state.currentForm.recipientFirstName = profile.firstName;
+        state.currentForm.recipientLastName = profile.lastName;
+        state.currentForm.recipientPhone = profile.phone;
+      } else if (!checked) {
+        state.currentForm.recipientFirstName = "";
+        state.currentForm.recipientLastName = "";
+        state.currentForm.recipientPhone = "";
+      }
+    },
+    saveCurrentFormAddress: (state) => {
+      const isNew = !state.selectedAddressId || !state.addresses.some(a => a.id === state.selectedAddressId);
+      const addressId = isNew ? Math.random().toString(36).substring(7) : state.selectedAddressId!;
+
+      const newAddress: ShippingAddress = {
+        id: addressId,
+        label: state.currentForm.label,
+        recipientFirstName: state.currentForm.recipientFirstName,
+        recipientLastName: state.currentForm.recipientLastName,
+        recipientPhone: state.currentForm.recipientPhone,
+        streetAddress: state.currentForm.streetAddress,
+        city: state.currentForm.city,
+        state: state.currentForm.state,
+        postalCode: state.currentForm.postalCode,
+        country: state.currentForm.country,
+        isDefault: state.addresses.length === 0, // Default if first address
+      };
+
+      if (isNew) {
+        state.addresses.push(newAddress);
+        state.selectedAddressId = addressId;
+      } else {
+        const index = state.addresses.findIndex((a) => a.id === addressId);
+        if (index !== -1) {
+          state.addresses[index] = {
+            ...newAddress,
+            isDefault: state.addresses[index].isDefault,
+          };
+        }
+      }
+    },
+    addSavedAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id">>) => {
+      const newId = Math.random().toString(36).substring(7);
+      const newAddress: ShippingAddress = {
+        ...action.payload,
+        id: newId,
+      };
+      state.addresses.push(newAddress);
+      if (!state.selectedAddressId) {
+        state.selectedAddressId = newId;
+      }
+    },
+    selectAddress: (state, action: PayloadAction<string>) => {
+      state.selectedAddressId = action.payload;
+      const addr = state.addresses.find((a) => a.id === action.payload);
+      if (addr) {
+        state.currentForm = {
+          recipientFirstName: addr.recipientFirstName,
+          recipientLastName: addr.recipientLastName,
+          recipientPhone: addr.recipientPhone,
+          streetAddress: addr.streetAddress,
+          city: addr.city,
+          state: addr.state,
+          postalCode: addr.postalCode,
+          country: addr.country,
+          label: addr.label,
+          isOrderForMe: false, // reset checkbox when picking custom
+        };
+      }
+    },
+    setDefaultAddress: (state, action: PayloadAction<string>) => {
+      state.addresses = state.addresses.map((a) => ({
+        ...a,
+        isDefault: a.id === action.payload,
+      }));
+    },
+    deleteAddress: (state, action: PayloadAction<string>) => {
+      state.addresses = state.addresses.filter((a) => a.id !== action.payload);
+      if (state.selectedAddressId === action.payload) {
+        if (state.addresses.length > 0) {
+          state.selectedAddressId = state.addresses[0].id;
+        } else {
+          state.selectedAddressId = null;
+        }
+      }
+    },
+    loadAddressIntoForm: (state, action: PayloadAction<string>) => {
+      const addr = state.addresses.find((a) => a.id === action.payload);
+      if (addr) {
+        state.selectedAddressId = addr.id;
+        state.currentForm = {
+          recipientFirstName: addr.recipientFirstName,
+          recipientLastName: addr.recipientLastName,
+          recipientPhone: addr.recipientPhone,
+          streetAddress: addr.streetAddress,
+          city: addr.city,
+          state: addr.state,
+          postalCode: addr.postalCode,
+          country: addr.country,
+          label: addr.label,
+          isOrderForMe: false,
+        };
+      }
+    },
+    resetFormState: (state) => {
+      state.currentForm = initialForm;
+      state.selectedAddressId = null;
+    },
+  },
+});
+
+export const {
+  updateFormFields,
+  setOrderForMe,
+  saveCurrentFormAddress,
+  addSavedAddress,
+  selectAddress,
+  setDefaultAddress,
+  deleteAddress,
+  loadAddressIntoForm,
+  resetFormState,
+} = shippingAddressSlice.actions;
+
+export default shippingAddressSlice.reducer;

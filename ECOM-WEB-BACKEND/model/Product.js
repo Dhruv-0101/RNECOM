@@ -86,6 +86,9 @@ ProductSchema.virtual("totalReviews").get(function () {
 ProductSchema.virtual("averageRating").get(function () {
   let ratingsTotal = 0;
   const product = this;
+  if (!product?.reviews?.length) {
+    return "0.0";
+  }
   product?.reviews?.forEach((review) => {
     //ratingsTotal = ratingsTotal + review?.rating
     ratingsTotal += review?.rating;

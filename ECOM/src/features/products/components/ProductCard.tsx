@@ -77,9 +77,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
         onPress={() => onPress?.(product)}
         style={{ flex: 1 }}
       >
-        <Card style={[styles.card, { borderColor: colors.border }]}>
+        <Card style={[styles.card, { borderColor: colors.border, borderRadius: 16 }]}>
           {/* Product Image Area */}
-          <View style={[styles.imageContainer, { backgroundColor: isDark ? colors.background : "#f1f5f9" }]}>
+          <View style={[styles.imageContainer, { backgroundColor: isDark ? colors.background : "#f8fafc" }]}>
             <Image
               source={imageSource}
               style={styles.image}
@@ -91,20 +91,29 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
             {/* Top Badges overlay */}
             <View style={styles.badgeContainer}>
               {outOfStock ? (
-                <View style={[styles.badge, { backgroundColor: colors.error }]}>
+                <View style={[styles.badge, { backgroundColor: "rgba(239, 68, 68, 0.9)" }]}>
                   <Text variant="xs" weight="bold" color="#ffffff">
-                    OUT OF STOCK
+                    SOLD OUT
                   </Text>
                 </View>
               ) : (
                 <View style={styles.badgeGroup}>
-                  <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                    <Text variant="xs" weight="bold" color="#ffffff">
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: isDark ? "rgba(99, 102, 241, 0.2)" : "rgba(99, 102, 241, 0.08)",
+                        borderColor: colors.primary,
+                        borderWidth: 0.5,
+                      },
+                    ]}
+                  >
+                    <Text variant="xs" weight="bold" color={colors.primary}>
                       {product.category?.toUpperCase() || "NEW"}
                     </Text>
                   </View>
                   {inCartQty > 0 && (
-                    <View style={[styles.badge, { backgroundColor: colors.success }]}>
+                    <View style={[styles.badge, { backgroundColor: "rgba(16, 185, 129, 0.9)" }]}>
                       <Text variant="xs" weight="bold" color="#ffffff">
                         {inCartQty} IN CART
                       </Text>
@@ -117,30 +126,37 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
 
           {/* Info Area */}
           <View style={styles.infoContainer}>
-            <Text variant="xs" weight="medium" color={colors.textMuted} style={styles.brand}>
-              {product.brand}
-            </Text>
-
-            <Text variant="sm" weight="semibold" color={colors.text} numberOfLines={2} style={styles.title}>
-              {product.name}
-            </Text>
-
-            {/* Rating Row */}
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={14} color={colors.warning} />
-              <Text variant="xs" weight="medium" color={colors.text} style={styles.ratingText}>
-                {product.averageRating || "0.0"}
+            <View>
+              <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.brand}>
+                {product.brand}
               </Text>
-              <Text variant="xs" color={colors.textMuted}>
-                ({product.totalReviews || 0})
+
+              <Text variant="sm" weight="semibold" color={colors.text} numberOfLines={2} style={styles.title}>
+                {product.name}
               </Text>
             </View>
 
-            {/* Price Row */}
-            <View style={styles.priceRow}>
-              <Text variant="md" weight="bold" color={colors.primary}>
-                ${product.price?.toFixed(2)}
-              </Text>
+            <View>
+              {/* Rating Row */}
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={11} color={colors.warning} />
+                <Text variant="xs" weight="bold" color={colors.text} style={styles.ratingText}>
+                  {isNaN(Number(product.averageRating)) ? "0.0" : Number(product.averageRating).toFixed(1)}
+                </Text>
+                <Text variant="xs" color={colors.textMuted}>
+                  ({product.totalReviews || 0})
+                </Text>
+              </View>
+
+              {/* Price Row */}
+              <View style={styles.priceRow}>
+                <Text variant="md" weight="bold" color={colors.primary}>
+                  ${product.price?.toFixed(2)}
+                </Text>
+                <View style={[styles.actionCircle, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="chevron-forward" size={13} color="#ffffff" />
+                </View>
+              </View>
             </View>
           </View>
         </Card>
@@ -151,13 +167,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
         onPress={handleToggleWishlist}
         style={[
           styles.heartButton,
-          { backgroundColor: isDark ? "rgba(15, 23, 42, 0.65)" : "rgba(255, 255, 255, 0.85)" },
+          { backgroundColor: isDark ? "rgba(15, 23, 42, 0.75)" : "rgba(255, 255, 255, 0.9)" },
         ]}
         activeOpacity={0.8}
       >
         <Ionicons
           name={isWishlisted ? "heart" : "heart-outline"}
-          size={16}
+          size={15}
           color={isWishlisted ? colors.error : colors.text}
         />
       </TouchableOpacity>
@@ -173,12 +189,13 @@ const styles = StyleSheet.create({
   card: {
     padding: 0,
     overflow: "hidden",
-    height: 220,
+    height: 255,
     width: "100%",
+    borderWidth: 1,
   },
   imageContainer: {
     width: "100%",
-    height: 110,
+    height: 135,
     position: "relative",
   },
   image: {
@@ -191,29 +208,29 @@ const styles = StyleSheet.create({
     left: SPACING.xs,
   },
   badgeGroup: {
-    flexDirection: "row",
-    gap: SPACING.xs,
-    alignItems: "center",
+    flexDirection: "column",
+    gap: 4,
+    alignItems: "flex-start",
   },
   badge: {
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: BORDER_RADIUS.xs,
+    paddingVertical: 2.5,
+    borderRadius: BORDER_RADIUS.sm,
   },
   heartButton: {
     position: "absolute",
     top: SPACING.xs,
     right: SPACING.xs,
-    width: 26,
-    height: 26,
-    borderRadius: BORDER_RADIUS.round,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
+    elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
     zIndex: 10,
   },
   infoContainer: {
@@ -223,23 +240,33 @@ const styles = StyleSheet.create({
   },
   brand: {
     textTransform: "uppercase",
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontSize: 9,
+    letterSpacing: 1,
+    marginBottom: 2,
   },
   title: {
-    marginVertical: 2,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
   },
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 2,
+    marginBottom: 4,
   },
   ratingText: {
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   priceRow: {
-    marginTop: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  actionCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 

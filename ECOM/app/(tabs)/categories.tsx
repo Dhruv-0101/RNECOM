@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, FlatList, Dimensions } from "react-native";
+import React, { useState, useEffect, useMemo } from "react";
+import { View, StyleSheet, TouchableOpacity, FlatList, Dimensions, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/src/store/store";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
@@ -14,6 +14,7 @@ import { useCategories } from "@/src/features/categories/hooks/useCategories";
 import { useProducts } from "@/src/features/products/hooks/useProducts";
 import { ProductCard } from "@/src/features/products/components/ProductCard";
 import { Category } from "@/src/features/categories/types/category.types";
+import { Product } from "@/src/features/products/types/product.types";
 import { ENV } from "@/src/config/env";
 
 const { width } = Dimensions.get("window");
@@ -22,9 +23,20 @@ const PADDING = 12;
 const RIGHT_PANEL_WIDTH = width - SIDEBAR_WIDTH;
 const CARD_WIDTH = (RIGHT_PANEL_WIDTH - PADDING * 3) / 2;
 
+const mockNoneCategory: Category = {
+  _id: "none_category",
+  name: "None",
+  image: "",
+  products: [],
+  user: "",
+  createdAt: "",
+  updatedAt: "",
+};
+
 export default function Categories() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const { category: routeCategory } = useLocalSearchParams<{ category?: string }>();
 
   // Fetch categories using custom React Query hook
   const {
@@ -35,34 +47,90 @@ export default function Categories() {
   } = useCategories();
 
   const categories = categoriesData?.categories || [];
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const categoriesWithNone = useMemo(() => {
+    return [mockNoneCategory, ...categories];
+  }, [categories]);
 
-  // Set first category as default once loaded
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [page, setPage] = useState(1);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Set selected category from route parameter or fall back to default None
   useEffect(() => {
-    if (categories.length > 0 && !selectedCategory) {
-      setSelectedCategory(categories[0]);
+    if (categories.length > 0) {
+      if (routeCategory) {
+        const matchedCategory = categories.find(
+          (c) => c.name.toLowerCase() === routeCategory.toLowerCase()
+        );
+        if (matchedCategory) {
+          setSelectedCategory(matchedCategory);
+          setPage(1);
+          setProductsList([]);
+          setHasMore(true);
+          return;
+        }
+      }
+
+      // Default to "None" category if none is selected yet
+      if (!selectedCategory) {
+        setSelectedCategory(mockNoneCategory);
+        setPage(1);
+        setProductsList([]);
+        setHasMore(true);
+      }
     }
-  }, [categories, selectedCategory]);
+  }, [categories, routeCategory]);
 
   // Read global search query from Redux store
   const searchQuery = useSelector((state: RootState) => state.search.query);
 
-  // Fetch products matching selected category and search filter
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setPage(1);
+    setProductsList([]);
+    setHasMore(true);
+  }, [searchQuery]);
+
+  // Fetch products matching selected category and search filter with pagination
+  const queryParams = useMemo(() => {
+    if (!selectedCategory) return undefined;
+    return {
+      category: selectedCategory._id === "none_category" ? undefined : selectedCategory.name,
+      name: searchQuery || undefined,
+      page,
+      limit: 10,
+    };
+  }, [selectedCategory, searchQuery, page]);
+
   const {
     data: productsData,
     isLoading: isProductsLoading,
     isFetching: isProductsFetching,
     refetch: refetchProducts,
-  } = useProducts(
-    selectedCategory
-      ? {
-          category: selectedCategory.name,
-          name: searchQuery || undefined,
-        }
-      : undefined
-  );
+  } = useProducts(queryParams);
 
-  const products = productsData?.products || [];
+  // Sync server products into aggregated local state for infinite scroll
+  useEffect(() => {
+    if (productsData?.products) {
+      const fetchedProducts = productsData.products;
+      if (page === 1) {
+        setProductsList(fetchedProducts);
+      } else {
+        setProductsList((prev) => {
+          const existingIds = new Set(prev.map((p) => p._id));
+          const uniqueNew = fetchedProducts.filter((p) => !existingIds.has(p._id));
+          return [...prev, ...uniqueNew];
+        });
+      }
+      // If server returned less than our page limit, we've reached the end
+      if (fetchedProducts.length < 10) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
+    }
+  }, [productsData, page]);
 
   // Helper to resolve absolute URLs or local dev server paths for category images
   const getCategoryImageUrl = (imagePath: string) => {
@@ -74,11 +142,26 @@ export default function Categories() {
     return { uri: `${ENV.API_URL}${cleanPath}` };
   };
 
-  // Pull to refresh handler for products in selected category
+  // Pull to refresh handler for products
   const handleRefreshProducts = () => {
-    if (selectedCategory) {
-      refetchProducts();
+    setPage(1);
+    setProductsList([]);
+    setHasMore(true);
+    refetchProducts();
+  };
+
+  // Trigger loading next page when scrolling reaches end
+  const handleLoadMore = () => {
+    if (hasMore && !isProductsFetching && !isProductsLoading) {
+      setPage((p) => p + 1);
     }
+  };
+
+  const handleCategorySelect = (category: Category) => {
+    setSelectedCategory(category);
+    setPage(1);
+    setProductsList([]);
+    setHasMore(true);
   };
 
   // Rendering individual category item in the left sidebar
@@ -86,6 +169,7 @@ export default function Categories() {
     const isActive = selectedCategory?._id === item._id;
     const displayName = item.name.charAt(0).toUpperCase() + item.name.slice(1);
     const categoryImage = getCategoryImageUrl(item.image);
+    const isNone = item._id === "none_category";
 
     return (
       <TouchableOpacity
@@ -96,7 +180,7 @@ export default function Categories() {
             backgroundColor: isActive ? colors.primaryLight : "transparent",
           },
         ]}
-        onPress={() => setSelectedCategory(item)}
+        onPress={() => handleCategorySelect(item)}
       >
         {isActive && (
           <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} />
@@ -110,7 +194,9 @@ export default function Categories() {
             },
           ]}
         >
-          {categoryImage ? (
+          {isNone ? (
+            <Ionicons name="apps-outline" size={18} color={isActive ? colors.primary : colors.textMuted} />
+          ) : categoryImage ? (
             <Image
               source={categoryImage}
               style={styles.categoryImage}
@@ -119,7 +205,7 @@ export default function Categories() {
               cachePolicy="disk"
             />
           ) : (
-            <Ionicons name="grid-outline" size={20} color={colors.textMuted} />
+            <Ionicons name="grid-outline" size={18} color={colors.textMuted} />
           )}
         </View>
         <Text
@@ -170,10 +256,10 @@ export default function Categories() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Left Sidebar - Categories List */}
+      {/* Left Sidebar - Categories List (includes None) */}
       <View style={[styles.sidebar, { backgroundColor: colors.surface, borderRightColor: colors.border }]}>
         <FlatList
-          data={categories}
+          data={categoriesWithNone}
           keyExtractor={(item) => item._id}
           renderItem={renderCategoryItem}
           contentContainerStyle={styles.sidebarContent}
@@ -185,21 +271,23 @@ export default function Categories() {
       <View style={styles.rightPanel}>
         {selectedCategory ? (
           <FlatList
-            data={products}
+            data={productsList}
             keyExtractor={(item) => item._id}
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.rightPanelContent}
             onRefresh={handleRefreshProducts}
-            refreshing={isProductsFetching && !isProductsLoading}
+            refreshing={isProductsFetching && page === 1 && !isProductsLoading}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
             ListHeaderComponent={
               <View style={styles.rightPanelHeader}>
                 <Text variant="lg" weight="bold" color={colors.text} style={styles.categoryTitle}>
-                  {selectedCategory.name}
+                  {selectedCategory.name === "None" ? "All Products" : selectedCategory.name}
                 </Text>
                 {!isProductsLoading && (
                   <Text variant="xs" color={colors.textMuted} style={styles.productCount}>
-                    {products.length} {products.length === 1 ? "product" : "products"} available
+                    {productsData?.total || productsList.length} {(productsData?.total || productsList.length) === 1 ? "product" : "products"} available
                   </Text>
                 )}
               </View>
@@ -216,6 +304,13 @@ export default function Categories() {
                 }}
               />
             )}
+            ListFooterComponent={
+              isProductsFetching && page > 1 ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               isProductsLoading ? (
                 <View style={styles.loaderContainer}>
@@ -228,7 +323,7 @@ export default function Categories() {
                     No Products Found
                   </Text>
                   <Text variant="sm" color={colors.textMuted} align="center" style={styles.emptySubtitle}>
-                    There are no products in this category right now.
+                    There are no products available matching this query.
                   </Text>
                 </View>
               )

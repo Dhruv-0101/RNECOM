@@ -50,8 +50,8 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
 
   // Find the user
   const user = await User.findById(req.userAuthId);
-  // Check if user has shipping address
-  if (!user?.hasShippingAddress) {
+  // Check if shipping address is provided in the payload
+  if (!shippingAddress) {
     throw new Error("Please provide shipping address");
   }
   // Check if order is not empty
@@ -117,7 +117,7 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
     success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/cancel`,
   });
-  res.send({ url: session.url });
+  res.send({ url: session.url, orderId: order?._id });
 });
 
 //@desc get all orders
@@ -125,10 +125,37 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
 //@access private
 
 export const getAllordersCtrl = asyncHandler(async (req, res) => {
-  //find all orders
-  const orders = await Order.find().populate("user");
+  // pagination
+  const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+  const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  const total = await Order.countDocuments();
+
+  const orders = await Order.find()
+    .populate("user")
+    .skip(startIndex)
+    .limit(limit);
+
+  const pagination = {};
+  if (endIndex < total) {
+    pagination.next = {
+      page: page + 1,
+      limit,
+    };
+  }
+  if (startIndex > 0) {
+    pagination.prev = {
+      page: page - 1,
+      limit,
+    };
+  }
+
   res.json({
     success: true,
+    total,
+    results: orders.length,
+    pagination,
     message: "All orders",
     orders,
   });

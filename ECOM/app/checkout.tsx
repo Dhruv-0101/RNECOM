@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator } from "react-native";
+import React, { useState, useMemo } from "react";
+import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
@@ -9,15 +9,24 @@ import { Text } from "@/src/shared/ui/Text";
 import { Card } from "@/src/shared/ui/Card";
 import { Input } from "@/src/shared/ui/Input";
 import { Button } from "@/src/shared/ui/Button";
+import { AutoScrollingList } from "@/src/shared/ui/AutoScrollingList";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { RootState, AppDispatch } from "@/src/store/store";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
-import { updateUser } from "@/src/features/auth/store/authSlice";
-import { authApi } from "@/src/features/auth/api/authApi";
 import { ordersApi } from "@/src/features/orders/api/ordersApi";
 import { couponsApi } from "@/src/features/coupons/api/couponsApi";
+import { useCoupons } from "@/src/features/coupons/hooks/useCoupons";
 import { Coupon } from "@/src/features/coupons/types/coupon.types";
 import { clearCart } from "@/src/features/cart/store/cartSlice";
+import {
+  updateFormFields,
+  setOrderForMe,
+  saveCurrentFormAddress,
+  selectAddress,
+  deleteAddress,
+  loadAddressIntoForm,
+  resetFormState,
+} from "@/src/features/shippingAddress/store/shippingAddressSlice";
 
 export default function CheckoutScreen() {
   const { colors, isDark } = useTheme();
@@ -28,92 +37,134 @@ export default function CheckoutScreen() {
   const cartItems = useSelector((state: RootState) => state.cart.items);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Address states
-  const [form, setForm] = useState({
-    firstName: user?.shippingAddress?.firstName || "",
-    lastName: user?.shippingAddress?.lastName || "",
-    address: user?.shippingAddress?.address || "",
-    city: user?.shippingAddress?.city || "",
-    province: user?.shippingAddress?.province || "",
-    postalCode: user?.shippingAddress?.postalCode || "",
-    country: user?.shippingAddress?.country || "",
-    phone: user?.shippingAddress?.phone || "",
-  });
+  // Address Redux States
+  const { addresses, selectedAddressId, currentForm } = useSelector(
+    (state: RootState) => state.shippingAddress
+  );
 
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [isEditingAddress, setIsEditingAddress] = useState(!user?.hasShippingAddress);
-  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const selectedAddress = useMemo(() => {
+    return addresses.find((a) => a.id === selectedAddressId) || (addresses.length > 0 ? addresses[0] : null);
+  }, [addresses, selectedAddressId]);
+
+  const [isEditingAddress, setIsEditingAddress] = useState(addresses.length === 0);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   // Coupon states
+  const { data: couponsData } = useCoupons();
+  const coupons = couponsData?.coupons || [];
+
+  const activeCoupons = useMemo(() => {
+    const now = new Date();
+    return coupons.filter((c) => new Date(c.endDate) > now);
+  }, [coupons]);
+
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState("");
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
-  // Pre-fill form if user shipping address updates
-  useEffect(() => {
-    if (user?.shippingAddress) {
-      setForm({
-        firstName: user.shippingAddress.firstName || "",
-        lastName: user.shippingAddress.lastName || "",
-        address: user.shippingAddress.address || "",
-        city: user.shippingAddress.city || "",
-        province: user.shippingAddress.province || "",
-        postalCode: user.shippingAddress.postalCode || "",
-        country: user.shippingAddress.country || "",
-        phone: user.shippingAddress.phone || "",
-      });
-      setIsEditingAddress(!user.hasShippingAddress);
-    }
-  }, [user]);
+  // Form Validation
+  const { errors, isValid } = useMemo(() => {
+    const errs: Record<string, string> = {};
+    const {
+      recipientFirstName,
+      recipientLastName,
+      recipientPhone,
+      streetAddress,
+      city,
+      state,
+      postalCode,
+      country,
+    } = currentForm;
 
-  const handleInputChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (formErrors[field]) {
-      setFormErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
+    if (!recipientFirstName.trim()) errs.recipientFirstName = "First name is required";
+    if (!recipientLastName.trim()) errs.recipientLastName = "Last name is required";
+    if (!streetAddress.trim()) errs.streetAddress = "Street address is required";
+    if (!city.trim()) errs.city = "City is required";
+    if (!state.trim()) errs.state = "State is required";
+    
+    if (!postalCode.trim()) {
+      errs.postalCode = "Postal code is required";
+    } else if (!/^[A-Z0-9\s-]{3,10}$/i.test(postalCode.trim())) {
+      errs.postalCode = "Invalid postal code format";
+    }
+    
+    if (!country.trim()) errs.country = "Country is required";
+    
+    if (!recipientPhone.trim()) {
+      errs.recipientPhone = "Phone number is required";
+    } else if (!/^\+?[\d\s-]{10,15}$/.test(recipientPhone.trim())) {
+      errs.recipientPhone = "Invalid phone number format (min 10 digits)";
+    }
+
+    return {
+      errors: errs,
+      isValid: Object.keys(errs).length === 0,
+    };
+  }, [currentForm]);
+
+  const handleInputChange = (field: keyof typeof currentForm, value: string | boolean) => {
+    dispatch(updateFormFields({ [field]: value }));
+  };
+
+  const handleToggleOrderForMe = () => {
+    const newChecked = !currentForm.isOrderForMe;
+    if (newChecked && user) {
+      const names = (user.fullname || "").trim().split(/\s+/);
+      const firstName = names[0] || "";
+      const lastName = names.slice(1).join(" ") || "";
+      dispatch(
+        setOrderForMe({
+          checked: true,
+          profile: {
+            firstName,
+            lastName,
+            phone: user.shippingAddress?.phone || "",
+          },
+        })
+      );
+    } else {
+      dispatch(setOrderForMe({ checked: false }));
     }
   };
 
-  const handleSaveAddress = async () => {
-    // Basic field validation
-    const errors: Record<string, string> = {};
-    if (!form.firstName.trim()) errors.firstName = "First name is required";
-    if (!form.lastName.trim()) errors.lastName = "Last name is required";
-    if (!form.address.trim()) errors.address = "Address is required";
-    if (!form.city.trim()) errors.city = "City is required";
-    if (!form.province.trim()) errors.province = "Province is required";
-    if (!form.postalCode.trim()) errors.postalCode = "Postal code is required";
-    if (!form.country.trim()) errors.country = "Country is required";
-    if (!form.phone.trim()) errors.phone = "Phone number is required";
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+  const handleSaveAddress = () => {
+    if (!isValid) {
+      setShowValidationErrors(true);
       return;
     }
-
-    try {
-      setIsSavingAddress(true);
-      const response = await authApi.updateShippingAddress(form);
-      if (response.userFound || response.user) {
-        const updatedUser = response.userFound || response.user;
-        dispatch(updateUser(updatedUser!));
-        setIsEditingAddress(false);
-      } else {
-        throw new Error("Failed to retrieve updated user profile.");
-      }
-    } catch (err) {
-      console.log("Save address error:", err);
-      Alert.alert("Address Update Failed", err instanceof Error ? err.message : "An unexpected error occurred.");
-    } finally {
-      setIsSavingAddress(false);
-    }
+    dispatch(saveCurrentFormAddress());
+    setIsEditingAddress(false);
+    setShowValidationErrors(false);
   };
 
+  const handleEditAddress = (addressId: string) => {
+    dispatch(loadAddressIntoForm(addressId));
+    setIsEditingAddress(true);
+  };
+
+  const handleDeleteAddress = (addressId: string) => {
+    Alert.alert(
+      "Delete Address",
+      "Are you sure you want to remove this delivery address?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => dispatch(deleteAddress(addressId)),
+        },
+      ]
+    );
+  };
+
+  const handleAddNewAddress = () => {
+    dispatch(resetFormState());
+    setIsEditingAddress(true);
+  };
+
+  // Coupon handling
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
       setCouponError("Please enter a coupon code");
@@ -145,12 +196,32 @@ export default function CheckoutScreen() {
     setCouponError("");
   };
 
-  // Compute pricing totals with coupon discounts applied
+  const handleQuickApplyCoupon = async (code: string) => {
+    setCouponCode(code);
+    try {
+      setIsValidatingCoupon(true);
+      setCouponError("");
+      const res = await couponsApi.getCoupon(code.trim());
+      if (res?.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponError("");
+      } else {
+        throw new Error("Coupon not found.");
+      }
+    } catch (err) {
+      console.log("Coupon apply error:", err);
+      setCouponError(err instanceof Error ? err.message : "Invalid or expired coupon code.");
+      setAppliedCoupon(null);
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
   const discountAmount = appliedCoupon ? total * (appliedCoupon.discount / 100) : 0;
   const finalTotal = total - discountAmount;
 
   const handlePayment = async () => {
-    if (!user?.shippingAddress) {
+    if (!selectedAddress) {
       Alert.alert("Error", "Please complete your shipping address details first.");
       return;
     }
@@ -163,35 +234,69 @@ export default function CheckoutScreen() {
     try {
       setIsProcessingPayment(true);
 
-      // Structure items exactly as expected by the backend controllers
       const orderItems = cartItems.map((item) => ({
         _id: item.productId,
         name: item.name,
         qty: item.quantity,
         price: item.price,
         description: `${item.brand} | Size: ${item.size}, Color: ${item.color}`,
+        image: item.image,
       }));
 
+      // Structure exactly matching the requested ShippingAddress model
       const payload = {
         orderItems,
-        shippingAddress: user.shippingAddress,
+        shippingAddress: {
+          recipientFirstName: selectedAddress.recipientFirstName,
+          recipientLastName: selectedAddress.recipientLastName,
+          recipientPhone: selectedAddress.recipientPhone,
+          streetAddress: selectedAddress.streetAddress,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          postalCode: selectedAddress.postalCode,
+          country: selectedAddress.country,
+        },
         totalPrice: total,
         coupon: appliedCoupon ? appliedCoupon.code : undefined,
       };
 
       const res = await ordersApi.createOrder(payload);
 
-      if (res?.url) {
-        // Open payment page in Web Browser (webview overlay)
+      if (res?.url && res?.orderId) {
         await WebBrowser.openBrowserAsync(res.url);
 
-        // Once the browser resolves/closes:
-        // 1. Clear cart locally
-        dispatch(clearCart());
-        // 2. Redirect to Order Success screen
-        router.replace("/order-success");
+        // Poll for payment status confirmation from Stripe webhook (5 attempts, 1.5s delay)
+        let attempts = 0;
+        let isPaid = false;
+
+        while (attempts < 5) {
+          try {
+            const orderRes = await ordersApi.getOrder(res.orderId);
+            if (orderRes?.order?.paymentStatus === "Paid") {
+              isPaid = true;
+              break;
+            }
+          } catch (pollErr) {
+            console.log("Error polling order status:", pollErr);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          attempts++;
+        }
+
+        if (isPaid) {
+          dispatch(clearCart());
+          router.replace({
+            pathname: "/order-success",
+            params: { orderId: res.orderId },
+          });
+        } else {
+          Alert.alert(
+            "Payment Unconfirmed",
+            "We could not verify your payment. If you cancelled or backed out, your cart items are preserved."
+          );
+        }
       } else {
-        throw new Error("Payment session creation failed. URL not found.");
+        throw new Error("Payment session creation failed. URL or Order ID not found.");
       }
     } catch (err) {
       console.log("Stripe Checkout Error:", err);
@@ -204,307 +309,464 @@ export default function CheckoutScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Custom Header Bar */}
-        <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.backButton, { backgroundColor: colors.inputBg }]}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-          </TouchableOpacity>
-          <Text variant="lg" weight="semibold" style={styles.headerTitle}>
-            Checkout
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          {/* Custom Header Bar */}
+          <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={[styles.backButton, { backgroundColor: colors.inputBg }]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chevron-back" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <Text variant="lg" weight="semibold" style={styles.headerTitle}>
+              Checkout
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {isEditingAddress ? (
-            /* Shipping Form Stage */
-            <Card style={styles.sectionCard}>
-              <Text variant="lg" weight="bold" style={styles.sectionTitle}>
-                Shipping Address
-              </Text>
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: SPACING.sm }}>
-                  <Input
-                    label="First Name"
-                    placeholder="John"
-                    value={form.firstName}
-                    onChangeText={(val) => handleInputChange("firstName", val)}
-                    error={formErrors.firstName}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Input
-                    label="Last Name"
-                    placeholder="Doe"
-                    value={form.lastName}
-                    onChangeText={(val) => handleInputChange("lastName", val)}
-                    error={formErrors.lastName}
-                  />
-                </View>
-              </View>
-
-              <Input
-                label="Street Address"
-                placeholder="123 Shopping Avenue"
-                value={form.address}
-                onChangeText={(val) => handleInputChange("address", val)}
-                error={formErrors.address}
-              />
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: SPACING.sm }}>
-                  <Input
-                    label="City"
-                    placeholder="San Francisco"
-                    value={form.city}
-                    onChangeText={(val) => handleInputChange("city", val)}
-                    error={formErrors.city}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Input
-                    label="State / Province"
-                    placeholder="CA"
-                    value={form.province}
-                    onChangeText={(val) => handleInputChange("province", val)}
-                    error={formErrors.province}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: SPACING.sm }}>
-                  <Input
-                    label="Postal Code"
-                    placeholder="94103"
-                    value={form.postalCode}
-                    onChangeText={(val) => handleInputChange("postalCode", val)}
-                    error={formErrors.postalCode}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Input
-                    label="Country"
-                    placeholder="United States"
-                    value={form.country}
-                    onChangeText={(val) => handleInputChange("country", val)}
-                    error={formErrors.country}
-                  />
-                </View>
-              </View>
-
-              <Input
-                label="Phone Number"
-                placeholder="+1 555 123 4567"
-                value={form.phone}
-                onChangeText={(val) => handleInputChange("phone", val)}
-                error={formErrors.phone}
-                keyboardType="phone-pad"
-              />
-
-              <Button
-                title="Save & Continue"
-                onPress={handleSaveAddress}
-                loading={isSavingAddress}
-                style={styles.saveButton}
-              />
-              {user?.hasShippingAddress && (
-                <Button
-                  title="Cancel"
-                  onPress={() => setIsEditingAddress(false)}
-                  variant="outline"
-                  style={styles.cancelBtn}
-                />
-              )}
-            </Card>
-          ) : (
-            /* Order Overview Stage */
-            <>
-              {/* Shipping Address Overview */}
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {isEditingAddress ? (
+              /* Address Edit Form Stage */
               <Card style={styles.sectionCard}>
                 <View style={styles.cardHeader}>
-                  <Text variant="lg" weight="bold">
-                    Shipping Details
+                  <Text variant="lg" weight="bold" style={styles.sectionTitle}>
+                    {selectedAddressId ? "Edit Delivery Address" : "Add Delivery Address"}
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => setIsEditingAddress(true)}
-                    style={[styles.editAddressBtn, { backgroundColor: colors.inputBg }]}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="create-outline" size={16} color={colors.primary} />
-                    <Text variant="xs" weight="bold" color={colors.primary} style={{ marginLeft: 4 }}>
-                      Edit
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={[styles.addressDetails, { borderColor: colors.border }]}>
-                  <Text variant="md" weight="semibold">
-                    {user?.shippingAddress?.firstName} {user?.shippingAddress?.lastName}
-                  </Text>
-                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: 4 }}>
-                    {user?.shippingAddress?.address}
-                  </Text>
-                  <Text variant="sm" color={colors.textMuted}>
-                    {user?.shippingAddress?.city}, {user?.shippingAddress?.province} {user?.shippingAddress?.postalCode}
-                  </Text>
-                  <Text variant="sm" color={colors.textMuted}>
-                    {user?.shippingAddress?.country}
-                  </Text>
-                  <Text variant="sm" color={colors.textMuted} style={{ marginTop: 6 }}>
-                    📞 {user?.shippingAddress?.phone}
-                  </Text>
-                </View>
-              </Card>
-
-              {/* Order Items List */}
-              <Card style={styles.sectionCard}>
-                <Text variant="lg" weight="bold" style={styles.sectionTitle}>
-                  Items Summary
-                </Text>
-                {cartItems.map((item) => (
-                  <View key={item.id} style={[styles.orderItemRow, { borderBottomColor: colors.border }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text variant="sm" weight="semibold" numberOfLines={1}>
-                        {item.name}
+                  {addresses.length > 0 && (
+                    <TouchableOpacity onPress={() => setIsEditingAddress(false)}>
+                      <Text variant="sm" weight="semibold" color={colors.primary}>
+                        View Saved
                       </Text>
-                      <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                        {item.brand} • Size: {item.size} • Color: {item.color}
-                      </Text>
-                    </View>
-                    <View style={styles.qtyPriceBlock}>
-                      <Text variant="sm" color={colors.textMuted}>
-                        Qty {item.quantity}
-                      </Text>
-                      <Text variant="sm" weight="bold" style={{ marginLeft: 16 }}>
-                        ${(item.price * item.quantity).toFixed(2)}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </Card>
-
-              {/* Coupon Section */}
-              <Card style={styles.sectionCard}>
-                <Text variant="lg" weight="bold" style={styles.sectionTitle}>
-                  Promo Code
-                </Text>
-                
-                {appliedCoupon ? (
-                  <View style={[styles.appliedCouponRow, { backgroundColor: colors.success + "12", borderColor: colors.success }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text variant="sm" weight="semibold" color={colors.success}>
-                        🎉 Coupon "{appliedCoupon.code.toUpperCase()}" Applied
-                      </Text>
-                      <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                        Get {appliedCoupon.discount}% OFF on your purchase
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={handleRemoveCoupon} style={styles.removeCouponBtn}>
-                      <Ionicons name="close-circle" size={20} color={colors.error} />
                     </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.couponInputRow}>
-                    <TextInput
-                      placeholder="Enter promo code (e.g. EXTRA10)"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      value={couponCode}
-                      onChangeText={(val) => {
-                        setCouponCode(val);
-                        setCouponError("");
-                      }}
-                      style={[
-                        styles.couponInput,
-                        {
-                          color: colors.text,
-                          borderColor: couponError ? colors.error : colors.border,
-                          backgroundColor: colors.inputBg,
-                        },
-                      ]}
-                      autoCapitalize="characters"
+                  )}
+                </View>
+
+                {/* 'Order is for me' Checkbox */}
+                <TouchableOpacity
+                  style={[styles.checkboxRow, { borderColor: colors.border }]}
+                  onPress={handleToggleOrderForMe}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={currentForm.isOrderForMe ? "checkbox" : "square-outline"}
+                    size={22}
+                    color={currentForm.isOrderForMe ? colors.primary : colors.textMuted}
+                  />
+                  <Text variant="sm" weight="semibold" color={colors.text} style={styles.checkboxLabel}>
+                    Order is for me (Autofill details)
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1, marginRight: SPACING.sm }}>
+                    <Input
+                      label="First Name *"
+                      placeholder="Recipient First Name"
+                      value={currentForm.recipientFirstName}
+                      onChangeText={(val) => handleInputChange("recipientFirstName", val)}
+                      error={showValidationErrors ? errors.recipientFirstName : undefined}
                     />
-                    <TouchableOpacity
-                      onPress={handleApplyCoupon}
-                      disabled={isValidatingCoupon}
-                      style={[styles.applyCouponBtn, { backgroundColor: colors.primary }]}
-                      activeOpacity={0.8}
-                    >
-                      {isValidatingCoupon ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
-                      ) : (
-                        <Text variant="sm" weight="bold" color="#ffffff">
-                          Apply
-                        </Text>
-                      )}
-                    </TouchableOpacity>
                   </View>
-                )}
-                {couponError ? (
-                  <Text variant="xs" color={colors.error} style={styles.couponErrorText}>
-                    {couponError}
-                  </Text>
-                ) : null}
-              </Card>
+                  <View style={{ flex: 1 }}>
+                    <Input
+                      label="Last Name *"
+                      placeholder="Recipient Last Name"
+                      value={currentForm.recipientLastName}
+                      onChangeText={(val) => handleInputChange("recipientLastName", val)}
+                      error={showValidationErrors ? errors.recipientLastName : undefined}
+                    />
+                  </View>
+                </View>
 
-              {/* Payment Summary */}
-              <Card style={styles.sectionCard}>
-                <Text variant="lg" weight="bold" style={styles.sectionTitle}>
-                  Pricing Summary
-                </Text>
-                <View style={styles.priceRow}>
-                  <Text variant="sm" color={colors.textMuted}>
-                    Subtotal
-                  </Text>
-                  <Text variant="sm" weight="semibold">
-                    ${total.toFixed(2)}
-                  </Text>
-                </View>
-                {appliedCoupon ? (
-                  <View style={styles.priceRow}>
-                    <Text variant="sm" color={colors.textMuted}>
-                      Discount ({appliedCoupon.discount}%)
-                    </Text>
-                    <Text variant="sm" weight="semibold" color={colors.error}>
-                      -${discountAmount.toFixed(2)}
-                    </Text>
+                <Input
+                  label="Street Address *"
+                  placeholder="Flat/House No, Building, Area"
+                  value={currentForm.streetAddress}
+                  onChangeText={(val) => handleInputChange("streetAddress", val)}
+                  error={showValidationErrors ? errors.streetAddress : undefined}
+                />
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1, marginRight: SPACING.sm }}>
+                    <Input
+                      label="City *"
+                      placeholder="Mumbai / New York"
+                      value={currentForm.city}
+                      onChangeText={(val) => handleInputChange("city", val)}
+                      error={showValidationErrors ? errors.city : undefined}
+                    />
                   </View>
-                ) : null}
-                <View style={styles.priceRow}>
-                  <Text variant="sm" color={colors.textMuted}>
-                    Shipping
-                  </Text>
-                  <Text variant="sm" weight="semibold" color={colors.success}>
-                    FREE
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Input
+                      label="State *"
+                      placeholder="MH / NY"
+                      value={currentForm.state}
+                      onChangeText={(val) => handleInputChange("state", val)}
+                      error={showValidationErrors ? errors.state : undefined}
+                    />
+                  </View>
                 </View>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <View style={styles.priceRow}>
-                  <Text variant="md" weight="bold">
-                    Order Total
-                  </Text>
-                  <Text variant="lg" weight="bold" color={colors.primary}>
-                    ${finalTotal.toFixed(2)}
-                  </Text>
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1, marginRight: SPACING.sm }}>
+                    <Input
+                      label="Postal Code *"
+                      placeholder="400001 / 10001"
+                      value={currentForm.postalCode}
+                      onChangeText={(val) => handleInputChange("postalCode", val)}
+                      error={showValidationErrors ? errors.postalCode : undefined}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Input
+                      label="Country *"
+                      placeholder="India / United States"
+                      value={currentForm.country}
+                      onChangeText={(val) => handleInputChange("country", val)}
+                      error={showValidationErrors ? errors.country : undefined}
+                    />
+                  </View>
+                </View>
+
+                <Input
+                  label="Phone Number *"
+                  placeholder="Recipient Mobile Number (min 10 digits)"
+                  value={currentForm.recipientPhone}
+                  onChangeText={(val) => handleInputChange("recipientPhone", val)}
+                  error={showValidationErrors ? errors.recipientPhone : undefined}
+                  keyboardType="phone-pad"
+                />
+
+                {/* Address Label selection */}
+                <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionSub}>
+                  ADDRESS LABEL
+                </Text>
+                <View style={styles.chipRow}>
+                  {["Home", "Work", "Other"].map((lbl) => {
+                    const isSelected = currentForm.label === lbl;
+                    return (
+                      <TouchableOpacity
+                        key={lbl}
+                        onPress={() => handleInputChange("label", lbl)}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.inputBg,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text variant="xs" weight="bold" color={isSelected ? "#ffffff" : colors.text}>
+                          {lbl}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 <Button
-                  title="Proceed to Payment"
-                  onPress={handlePayment}
-                  loading={isProcessingPayment}
-                  icon="card-outline"
-                  style={styles.payBtn}
+                  title="Save & Continue"
+                  onPress={handleSaveAddress}
+                  disabled={!isValid}
+                  style={styles.saveButton}
                 />
+                {addresses.length > 0 && (
+                  <Button
+                    title="Cancel"
+                    onPress={() => {
+                      setIsEditingAddress(false);
+                      setShowValidationErrors(false);
+                    }}
+                    variant="outline"
+                    style={styles.cancelBtn}
+                  />
+                )}
               </Card>
-            </>
-          )}
-        </ScrollView>
-      </View>
+            ) : (
+              /* Order Overview & Address Selection Stage */
+              <>
+                {/* Delivery Address Details */}
+                <Card style={styles.sectionCard}>
+                  <View style={styles.cardHeader}>
+                    <Text variant="lg" weight="bold">
+                      Delivery Address
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleAddNewAddress}
+                      style={[styles.addAddressBtn, { backgroundColor: colors.inputBg }]}
+                    >
+                      <Ionicons name="add" size={16} color={colors.primary} />
+                      <Text variant="xs" weight="bold" color={colors.primary} style={{ marginLeft: 2 }}>
+                        Add New
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* List of Saved Addresses */}
+                  {addresses.map((item) => {
+                    const isSelected = selectedAddress?.id === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => dispatch(selectAddress(item.id))}
+                        style={[
+                          styles.addressOption,
+                          {
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            backgroundColor: isSelected
+                              ? isDark
+                                ? "rgba(99, 102, 241, 0.05)"
+                                : "#f5f3ff"
+                              : "transparent",
+                          },
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.addressLeft}>
+                          <Ionicons
+                            name={isSelected ? "radio-button-on" : "radio-button-off"}
+                            size={18}
+                            color={isSelected ? colors.primary : colors.textMuted}
+                            style={{ marginRight: SPACING.sm, marginTop: 2 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.nameLabelRow}>
+                              <Text variant="sm" weight="semibold">
+                                {item.recipientFirstName} {item.recipientLastName}
+                              </Text>
+                              <View style={[styles.labelBadge, { backgroundColor: colors.inputBg }]}>
+                                <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.labelText}>
+                                  {item.label}
+                                </Text>
+                              </View>
+                              {item.isDefault && (
+                                <View style={[styles.labelBadge, { backgroundColor: colors.success + "15" }]}>
+                                  <Text variant="xs" weight="bold" color={colors.success} style={styles.labelText}>
+                                    Default
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                              {item.streetAddress}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted}>
+                              {item.city}, {item.state} {item.postalCode}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted}>
+                              {item.country}
+                            </Text>
+                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 4 }}>
+                              📞 {item.recipientPhone}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.addressActions}>
+                          <TouchableOpacity onPress={() => handleEditAddress(item.id)} style={styles.actionBtn}>
+                            <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleDeleteAddress(item.id)} style={styles.actionBtn}>
+                            <Ionicons name="trash-outline" size={16} color={colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </Card>
+
+                {/* Items Summary */}
+                <Card style={styles.sectionCard}>
+                  <Text variant="lg" weight="bold" style={styles.sectionTitle}>
+                    Items Summary
+                  </Text>
+                  {cartItems.map((item) => (
+                    <View key={item.id} style={[styles.orderItemRow, { borderBottomColor: colors.border }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="sm" weight="semibold" numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                          {item.brand} • Size: {item.size} • Color: {item.color}
+                        </Text>
+                      </View>
+                      <View style={styles.qtyPriceBlock}>
+                        <Text variant="sm" color={colors.textMuted}>
+                          Qty {item.quantity}
+                        </Text>
+                        <Text variant="sm" weight="bold" style={{ marginLeft: 16 }}>
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </Card>
+
+                {/* Coupon Section */}
+                <Card style={styles.sectionCard}>
+                  <Text variant="lg" weight="bold" style={styles.sectionTitle}>
+                    Promo Code
+                  </Text>
+
+                  {appliedCoupon ? (
+                    <View style={[styles.appliedCouponRow, { backgroundColor: colors.success + "12", borderColor: colors.success }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text variant="sm" weight="semibold" color={colors.success}>
+                          🎉 Coupon "{appliedCoupon.code.toUpperCase()}" Applied
+                        </Text>
+                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                          Get {appliedCoupon.discount}% OFF on your purchase
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={handleRemoveCoupon} style={styles.removeCouponBtn}>
+                        <Ionicons name="close-circle" size={20} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.couponInputRow}>
+                        <TextInput
+                          placeholder="Enter promo code (e.g. EXTRA10)"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={couponCode}
+                          onChangeText={(val) => {
+                            setCouponCode(val);
+                            setCouponError("");
+                          }}
+                          style={[
+                            styles.couponInput,
+                            {
+                              color: colors.text,
+                              borderColor: couponError ? colors.error : colors.border,
+                              backgroundColor: colors.inputBg,
+                            },
+                          ]}
+                          autoCapitalize="characters"
+                        />
+                        <TouchableOpacity
+                          onPress={handleApplyCoupon}
+                          disabled={isValidatingCoupon}
+                          style={[styles.applyCouponBtn, { backgroundColor: colors.primary }]}
+                          activeOpacity={0.8}
+                        >
+                          {isValidatingCoupon ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <Text variant="sm" weight="bold" color="#ffffff">
+                              Apply
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Horizontal Available Coupons List */}
+                      {activeCoupons.length > 0 && (
+                        <View style={styles.availableCouponsWrapper}>
+                          <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.availableCouponsTitle}>
+                            AVAILABLE COUPONS
+                          </Text>
+                          <AutoScrollingList
+                            data={activeCoupons}
+                            contentContainerStyle={styles.couponsListScroll}
+                            renderItem={(item) => (
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => handleQuickApplyCoupon(item.code)}
+                                style={[
+                                  styles.couponCard,
+                                  {
+                                    backgroundColor: isDark ? "rgba(99, 102, 241, 0.08)" : "#f5f3ff",
+                                    borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#ddd6fe",
+                                  },
+                                ]}
+                              >
+                                <View style={styles.couponCardLeft}>
+                                  <Text variant="xs" weight="bold" color={colors.primary}>
+                                    {item.code.toUpperCase()}
+                                  </Text>
+                                  <Text variant="xxs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                    Save {item.discount}%
+                                  </Text>
+                                </View>
+                                <View style={[styles.couponDottedLine, { borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#c7d2fe" }]} />
+                                <View style={styles.couponCardRight}>
+                                  <Text variant="xs" weight="bold" color={colors.primary}>
+                                    APPLY
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            )}
+                          />
+                        </View>
+                      )}
+                    </>
+                  )}
+                  {couponError ? (
+                    <Text variant="xs" color={colors.error} style={styles.couponErrorText}>
+                      {couponError}
+                    </Text>
+                  ) : null}
+                </Card>
+
+                {/* Payment Summary */}
+                <Card style={styles.sectionCard}>
+                  <Text variant="lg" weight="bold" style={styles.sectionTitle}>
+                    Pricing Summary
+                  </Text>
+                  <View style={styles.priceRow}>
+                    <Text variant="sm" color={colors.textMuted}>
+                      Subtotal
+                    </Text>
+                    <Text variant="sm" weight="semibold">
+                      ${total.toFixed(2)}
+                    </Text>
+                  </View>
+                  {appliedCoupon ? (
+                    <View style={styles.priceRow}>
+                      <Text variant="sm" color={colors.textMuted}>
+                        Discount ({appliedCoupon.discount}%)
+                      </Text>
+                      <Text variant="sm" weight="semibold" color={colors.error}>
+                        -${discountAmount.toFixed(2)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.priceRow}>
+                    <Text variant="sm" color={colors.textMuted}>
+                      Shipping
+                    </Text>
+                    <Text variant="sm" weight="semibold" color={colors.success}>
+                      FREE
+                    </Text>
+                  </View>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={styles.priceRow}>
+                    <Text variant="md" weight="bold">
+                      Order Total
+                    </Text>
+                    <Text variant="lg" weight="bold" color={colors.primary}>
+                      ${finalTotal.toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <Button
+                    title="Proceed to Payment"
+                    onPress={handlePayment}
+                    loading={isProcessingPayment}
+                    icon="card-outline"
+                    style={styles.payBtn}
+                  />
+                </Card>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </>
   );
 }
@@ -542,9 +804,35 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: SPACING.md,
   },
+  sectionSub: {
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
+    letterSpacing: 0.5,
+  },
   row: {
     flexDirection: "row",
     width: "100%",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  checkboxLabel: {
+    marginLeft: SPACING.sm,
+  },
+  chipRow: {
+    flexDirection: "row",
+    marginBottom: SPACING.lg,
+  },
+  chip: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 8,
+    borderRadius: BORDER_RADIUS.round,
+    borderWidth: 1.5,
+    marginRight: SPACING.sm,
   },
   saveButton: {
     marginTop: SPACING.sm,
@@ -558,17 +846,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: SPACING.md,
   },
-  editAddressBtn: {
+  addAddressBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
   },
-  addressDetails: {
-    padding: SPACING.md,
+  addressOption: {
+    borderWidth: 1.5,
     borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  addressLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  nameLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  labelBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.xs,
+    marginLeft: 6,
+  },
+  labelText: {
+    fontSize: 9,
+    lineHeight: 11,
+  },
+  addressActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: SPACING.sm,
+  },
+  actionBtn: {
+    padding: 6,
+    marginLeft: 4,
   },
   orderItemRow: {
     flexDirection: "row",
@@ -628,5 +949,44 @@ const styles = StyleSheet.create({
   },
   removeCouponBtn: {
     padding: SPACING.xs,
+  },
+  availableCouponsWrapper: {
+    marginTop: SPACING.lg,
+  },
+  availableCouponsTitle: {
+    marginBottom: SPACING.sm,
+    letterSpacing: 0.5,
+  },
+  couponsListScroll: {
+    paddingRight: SPACING.md,
+    paddingVertical: 2,
+  },
+  couponCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    borderStyle: "dashed",
+    marginRight: SPACING.sm,
+    height: 52,
+    width: 140,
+    overflow: "hidden",
+  },
+  couponCardLeft: {
+    flex: 1.2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  couponDottedLine: {
+    borderLeftWidth: 1.5,
+    borderStyle: "dotted",
+    height: "80%",
+  },
+  couponCardRight: {
+    flex: 0.8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
   },
 });

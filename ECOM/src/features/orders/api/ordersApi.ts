@@ -19,6 +19,7 @@ export interface CreateOrderPayload {
 
 export interface CreateOrderResponse {
   url: string; // Stripe checkout session URL
+  orderId?: string; // Database Order ID
 }
 
 export const ordersApi = {
@@ -27,6 +28,14 @@ export const ordersApi = {
    */
   async createOrder(payload: CreateOrderPayload): Promise<CreateOrderResponse> {
     const response = await apiClient.post<CreateOrderResponse>(ENDPOINTS.ORDERS.CREATE, payload);
+    return response.data;
+  },
+
+  /**
+   * Fetch a single order status by ID
+   */
+  async getOrder(id: string): Promise<any> {
+    const response = await apiClient.get<any>(ENDPOINTS.ORDERS.DETAIL(id));
     return response.data;
   },
 };
