@@ -83,55 +83,42 @@ export const getProductsCtrl = asyncHandler(async (req, res) => {
 */
 
   //query
-  let productQuery = Product.find();
   let query = {};
 
   //search by name
   if (req.query.name) {
-    query = productQuery.find({
-      name: { $regex: req.query.name, $options: "i" },
-    });
+    query.name = { $regex: req.query.name, $options: "i" };
   }
 
   //filter by brand
   if (req.query.brand) {
-    query = productQuery.find({
-      brand: { $regex: req.query.brand, $options: "i" },
-    });
+    query.brand = { $regex: req.query.brand, $options: "i" };
   }
 
   //filter by category
   if (req.query.category) {
-    query = productQuery.find({
-      category: { $regex: req.query.category, $options: "i" },
-    });
+    query.category = { $regex: req.query.category, $options: "i" };
   }
 
   //filter by color
   if (req.query.color) {
-    query = productQuery.find({
-      colors: { $regex: req.query.color, $options: "i" },
-    });
+    query.colors = { $regex: req.query.color, $options: "i" };
   }
 
   //filter by size
   if (req.query.size) {
-    query = productQuery.find({
-      sizes: { $regex: req.query.size, $options: "i" },
-    });
+    query.sizes = { $regex: req.query.size, $options: "i" };
   }
+
   //filter by price range
   if (req.query.price) {
     const priceRange = req.query.price.split("-");
     //gte: greater or equal
     //lte: less than or equal to
-    query = productQuery.find({
-      price: { $gte: priceRange[0], $lte: priceRange[1] },
-    });
+    query.price = { $gte: priceRange[0], $lte: priceRange[1] };
   }
 
-  // Apply filters to the base query
-  productQuery = productQuery.find(query);
+  let productQuery = Product.find(query);
 
   //pagination
   //page
@@ -143,7 +130,7 @@ export const getProductsCtrl = asyncHandler(async (req, res) => {
   //endIdx
   const endIndex = page * limit;
   //total
-  const total = await Product.countDocuments();
+  const total = await Product.countDocuments(query);
 
   productQuery = productQuery.skip(startIndex).limit(limit);
 

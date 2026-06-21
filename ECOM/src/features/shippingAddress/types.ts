@@ -32,4 +32,6 @@ export interface ShippingAddressState {
   currentForm: ShippingAddressForm;
   loading: boolean;
   error: string | null;
+  hasSyncedProfile?: boolean;
+  profileAddressDeleted?: boolean;
 }

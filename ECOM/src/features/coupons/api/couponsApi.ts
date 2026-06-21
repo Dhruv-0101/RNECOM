@@ -6,8 +6,8 @@ export const couponsApi = {
   /**
    * Fetch all coupons from the backend.
    */
-  async getCoupons(): Promise<CouponsResponse> {
-    const response = await apiClient.get<CouponsResponse>(ENDPOINTS.COUPONS.LIST);
+  async getCoupons(params?: { page?: number; limit?: number; code?: string }): Promise<CouponsResponse> {
+    const response = await apiClient.get<CouponsResponse>(ENDPOINTS.COUPONS.LIST, { params });
     return response.data;
   },
 

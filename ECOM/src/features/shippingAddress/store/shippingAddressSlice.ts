@@ -20,6 +20,8 @@ const initialState: ShippingAddressState = {
   currentForm: initialForm,
   loading: false,
   error: null,
+  hasSyncedProfile: false,
+  profileAddressDeleted: false,
 };
 
 const shippingAddressSlice = createSlice({
@@ -139,6 +141,11 @@ const shippingAddressSlice = createSlice({
       }));
     },
     deleteAddress: (state, action: PayloadAction<string>) => {
+      const addressToDelete = state.addresses.find((a) => a.id === action.payload);
+      if (addressToDelete?.isProfileAddress) {
+        state.profileAddressDeleted = true;
+      }
+
       state.addresses = state.addresses.filter((a) => a.id !== action.payload);
       if (state.selectedAddressId === action.payload) {
         if (state.addresses.length > 0) {
@@ -171,6 +178,11 @@ const shippingAddressSlice = createSlice({
       state.selectedAddressId = null;
     },
     syncProfileAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id" | "isProfileAddress">>) => {
+      if (state.profileAddressDeleted) {
+        // Do not re-sync if the user explicitly deleted the profile address
+        return;
+      }
+
       const index = state.addresses.findIndex((a) => a.isProfileAddress);
       if (index !== -1) {
         state.addresses[index] = {
@@ -189,6 +201,7 @@ const shippingAddressSlice = createSlice({
           state.selectedAddressId = newId;
         }
       }
+      state.hasSyncedProfile = true;
     },
   },
 });

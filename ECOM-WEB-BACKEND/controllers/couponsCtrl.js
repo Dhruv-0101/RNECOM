@@ -37,7 +37,6 @@ export const createCouponCtrl = asyncHandler(async (req, res) => {
 
 // @desc    Get all coupons
 // @route   GET /api/v1/coupons
-// @access  Private/Admin
 
 export const getAllCouponsCtrl = asyncHandler(async (req, res) => {
   // pagination
@@ -45,11 +44,15 @@ export const getAllCouponsCtrl = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const total = await Coupon.countDocuments();
 
-  const coupons = await Coupon.find()
-    .skip(startIndex)
-    .limit(limit);
+  const query = {};
+  if (req.query.code) {
+    query.code = { $regex: req.query.code, $options: "i" };
+  }
+
+  const total = await Coupon.countDocuments(query);
+
+  const coupons = await Coupon.find(query).skip(startIndex).limit(limit);
 
   const pagination = {};
   if (endIndex < total) {
@@ -107,7 +110,7 @@ export const updateCouponCtrl = asyncHandler(async (req, res) => {
     },
     {
       new: true,
-    }
+    },
   );
   res.json({
     status: "success",

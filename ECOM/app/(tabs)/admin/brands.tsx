@@ -19,6 +19,7 @@ import { Input } from "@/src/shared/ui/Input";
 import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
+import { BRAND_PAGINATION } from "@/src/features/brands/config/pagination";
 
 interface Brand {
   _id: string;
@@ -32,6 +33,8 @@ export default function AdminBrands() {
   const router = useRouter();
 
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,11 +45,32 @@ export default function AdminBrands() {
   const [singleNameInput, setSingleNameInput] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const loadBrands = async () => {
+  const loadBrands = async (pageNum: number, searchVal: string, isAppend = false) => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/v1/brands?limit=1000");
-      setBrands(res.data?.brands || []);
+      const res = await apiClient.get("/api/v1/brands", {
+        params: {
+          page: pageNum,
+          limit: BRAND_PAGINATION.ADMIN_LIMIT,
+          name: searchVal || undefined,
+        },
+      });
+      const fetchedBrands = res.data?.brands || [];
+      if (isAppend) {
+        setBrands((prev) => {
+          const existingIds = new Set(prev.map((b) => b._id));
+          const uniqueNew = fetchedBrands.filter((b: any) => !existingIds.has(b._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setBrands(fetchedBrands);
+      }
+
+      if (fetchedBrands.length < BRAND_PAGINATION.ADMIN_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       console.log("Failed to load brands:", err);
       Alert.alert("Error", "Could not fetch brands from backend.");
@@ -56,13 +80,29 @@ export default function AdminBrands() {
   };
 
   useEffect(() => {
-    loadBrands();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadBrands(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadBrands();
+    setPage(1);
+    setHasMore(true);
+    await loadBrands(1, searchQuery, false);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadBrands(nextPage, searchQuery, true);
+    }
   };
 
   const openAddModal = () => {
@@ -102,7 +142,7 @@ export default function AdminBrands() {
 
       Alert.alert("Success", "Brand saved successfully.");
       closeModal();
-      loadBrands();
+      loadBrands(1, searchQuery, false);
     } catch (err: any) {
       console.log("Brand save error:", err);
       Alert.alert("Save Failed", err.response?.data?.message || err.message);
@@ -122,7 +162,7 @@ export default function AdminBrands() {
             setLoading(true);
             await apiClient.delete(`/api/v1/brands/${id}`);
             Alert.alert("Success", "Brand deleted.");
-            loadBrands();
+            loadBrands(1, searchQuery, false);
           } catch (err: any) {
             Alert.alert("Delete Failed", err.response?.data?.message || err.message);
           } finally {
@@ -133,9 +173,7 @@ export default function AdminBrands() {
     ]);
   };
 
-  const filteredBrands = brands.filter((br) => {
-    return br.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-  });
+  // Server filtered brands list
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -188,32 +226,44 @@ export default function AdminBrands() {
           </View>
         )}
 
-        {filteredBrands.length === 0 ? (
+        {brands.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching brands found." : "No brands saved."}
           </Text>
         ) : (
-          filteredBrands.map((br) => (
-            <Card key={br._id} style={[styles.listCard, { borderColor: colors.border }]}>
-              <Text variant="sm" weight="bold" style={{ flex: 1 }}>
-                {br.name.toUpperCase()}
-              </Text>
-              <View style={styles.listCardActions}>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => openEditModal(br)}
-                >
-                  <Ionicons name="create-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => handleDeleteBrand(br._id)}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            </Card>
-          ))
+          <>
+            {brands.map((br) => (
+              <Card key={br._id} style={[styles.listCard, { borderColor: colors.border }]}>
+                <Text variant="sm" weight="bold" style={{ flex: 1 }}>
+                  {br.name.toUpperCase()}
+                </Text>
+                <View style={styles.listCardActions}>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => openEditModal(br)}
+                  >
+                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => handleDeleteBrand(br._id)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            ))}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 

@@ -38,6 +38,14 @@ export const ordersApi = {
     const response = await apiClient.get<any>(ENDPOINTS.ORDERS.DETAIL(id));
     return response.data;
   },
+
+  /**
+   * Fetch all orders with optional page, limit, search query parameters
+   */
+  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<any> {
+    const response = await apiClient.get<any>(ENDPOINTS.ORDERS.LIST, { params });
+    return response.data;
+  },
 };
 
 export default ordersApi;

@@ -19,6 +19,7 @@ import { Input } from "@/src/shared/ui/Input";
 import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
+import { COLOR_PAGINATION } from "@/src/features/colors/config/pagination";
 
 interface Color {
   _id: string;
@@ -32,6 +33,8 @@ export default function AdminColors() {
   const router = useRouter();
 
   const [colorsList, setColorsList] = useState<Color[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,11 +45,32 @@ export default function AdminColors() {
   const [singleNameInput, setSingleNameInput] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const loadColors = async () => {
+  const loadColors = async (pageNum: number, searchVal: string, isAppend = false) => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/v1/colors?limit=1000");
-      setColorsList(res.data?.colors || []);
+      const res = await apiClient.get("/api/v1/colors", {
+        params: {
+          page: pageNum,
+          limit: COLOR_PAGINATION.ADMIN_LIMIT,
+          name: searchVal || undefined,
+        },
+      });
+      const fetchedColors = res.data?.colors || [];
+      if (isAppend) {
+        setColorsList((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedColors.filter((c: any) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setColorsList(fetchedColors);
+      }
+
+      if (fetchedColors.length < COLOR_PAGINATION.ADMIN_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       console.log("Failed to load colors:", err);
       Alert.alert("Error", "Could not fetch colors from backend.");
@@ -56,13 +80,29 @@ export default function AdminColors() {
   };
 
   useEffect(() => {
-    loadColors();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadColors(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadColors();
+    setPage(1);
+    setHasMore(true);
+    await loadColors(1, searchQuery, false);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadColors(nextPage, searchQuery, true);
+    }
   };
 
   const openAddModal = () => {
@@ -102,7 +142,7 @@ export default function AdminColors() {
 
       Alert.alert("Success", "Color saved successfully.");
       closeModal();
-      loadColors();
+      loadColors(1, searchQuery, false);
     } catch (err: any) {
       console.log("Color save error:", err);
       Alert.alert("Save Failed", err.response?.data?.message || err.message);
@@ -122,7 +162,7 @@ export default function AdminColors() {
             setLoading(true);
             await apiClient.delete(`/api/v1/colors/${id}`);
             Alert.alert("Success", "Color deleted.");
-            loadColors();
+            loadColors(1, searchQuery, false);
           } catch (err: any) {
             Alert.alert("Delete Failed", err.response?.data?.message || err.message);
           } finally {
@@ -133,9 +173,7 @@ export default function AdminColors() {
     ]);
   };
 
-  const filteredColors = colorsList.filter((col) => {
-    return col.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-  });
+  // Server filtered colors list
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -188,35 +226,47 @@ export default function AdminColors() {
           </View>
         )}
 
-        {filteredColors.length === 0 ? (
+        {colorsList.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching colors found." : "No colors saved."}
           </Text>
         ) : (
-          filteredColors.map((col) => (
-            <Card key={col._id} style={[styles.listCard, { borderColor: colors.border }]}>
-              <View style={styles.colorRowContent}>
-                <View style={[styles.colorColorIndicator, { backgroundColor: col.name.toLowerCase() }]} />
-                <Text variant="sm" weight="bold" style={{ marginLeft: 12 }}>
-                  {col.name.toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.listCardActions}>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => openEditModal(col)}
-                >
-                  <Ionicons name="create-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => handleDeleteColor(col._id)}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            </Card>
-          ))
+          <>
+            {colorsList.map((col) => (
+              <Card key={col._id} style={[styles.listCard, { borderColor: colors.border }]}>
+                <View style={styles.colorRowContent}>
+                  <View style={[styles.colorColorIndicator, { backgroundColor: col.name.toLowerCase() }]} />
+                  <Text variant="sm" weight="bold" style={{ marginLeft: 12 }}>
+                    {col.name.toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.listCardActions}>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => openEditModal(col)}
+                  >
+                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => handleDeleteColor(col._id)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            ))}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 

@@ -72,17 +72,19 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
   });
 
   // Update the product qty
-  const products = await Product.find({ _id: { $in: orderItems } });
+  const products = await Product.find({ _id: { $in: orderItems.map(item => item._id) } });
 
-  orderItems?.map(async (order) => {
-    const product = products?.find((product) => {
-      return product?._id?.toString() === order?._id?.toString();
-    });
+  for (const item of orderItems) {
+    const product = products.find(
+      (p) => p._id.toString() === item._id.toString()
+    );
     if (product) {
-      product.totalSold += order.qty;
+      product.totalSold += item.qty;
     }
-    await product.save();
-  });
+  }
+
+  // Save all modified unique products
+  await Promise.all(products.map((product) => product.save()));
   // push order into user
   user.orders.push(order?._id);
   await user.save();
@@ -130,9 +132,43 @@ export const getAllordersCtrl = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const total = await Order.countDocuments();
 
-  const orders = await Order.find()
+  // Retrieve user to check if regular user or admin
+  const currentUser = await User.findById(req.userAuthId);
+  const query = {};
+
+  if (!currentUser?.isAdmin) {
+    query.user = req.userAuthId;
+  }
+
+  if (req.query.search) {
+    const searchVal = req.query.search.trim();
+    const orderNumberQuery = { orderNumber: { $regex: searchVal, $options: "i" } };
+    
+    if (!currentUser?.isAdmin) {
+      // Non-admins can only search within their own orders
+      query.$or = [orderNumberQuery];
+    } else {
+      // Admins can search by order number or user details
+      const matchedUsers = await User.find({
+        $or: [
+          { fullname: { $regex: searchVal, $options: "i" } },
+          { email: { $regex: searchVal, $options: "i" } }
+        ]
+      }).select("_id");
+      
+      const userIds = matchedUsers.map(u => u._id);
+      
+      query.$or = [
+        orderNumberQuery,
+        { user: { $in: userIds } }
+      ];
+    }
+  }
+
+  const total = await Order.countDocuments(query);
+
+  const orders = await Order.find(query)
     .populate("user")
     .skip(startIndex)
     .limit(limit);

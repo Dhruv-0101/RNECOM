@@ -35,9 +35,15 @@ export const getAllCategoriesCtrl = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const total = await Category.countDocuments();
 
-  const categories = await Category.find()
+  const query = {};
+  if (req.query.name) {
+    query.name = { $regex: req.query.name, $options: "i" };
+  }
+
+  const total = await Category.countDocuments(query);
+
+  const categories = await Category.find(query)
     .skip(startIndex)
     .limit(limit);
 

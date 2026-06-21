@@ -22,12 +22,15 @@ import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { Category } from "@/src/features/categories/types/category.types";
+import { CATEGORY_PAGINATION } from "@/src/features/categories/config/pagination";
 
 export default function AdminCategories() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,11 +42,32 @@ export default function AdminCategories() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [categoryImageUri, setCategoryImageUri] = useState<string | null>(null);
 
-  const loadCategories = async () => {
+  const loadCategories = async (pageNum: number, searchVal: string, isAppend = false) => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/v1/categories?limit=1000");
-      setCategories(res.data?.categories || []);
+      const res = await apiClient.get("/api/v1/categories", {
+        params: {
+          page: pageNum,
+          limit: CATEGORY_PAGINATION.ADMIN_LIMIT,
+          name: searchVal || undefined,
+        },
+      });
+      const fetchedCategories = res.data?.categories || [];
+      if (isAppend) {
+        setCategories((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedCategories.filter((c: any) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setCategories(fetchedCategories);
+      }
+
+      if (fetchedCategories.length < CATEGORY_PAGINATION.ADMIN_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       console.log("Failed to load categories:", err);
       Alert.alert("Error", "Could not fetch categories from backend.");
@@ -53,13 +77,29 @@ export default function AdminCategories() {
   };
 
   useEffect(() => {
-    loadCategories();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadCategories(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadCategories();
+    setPage(1);
+    setHasMore(true);
+    await loadCategories(1, searchQuery, false);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadCategories(nextPage, searchQuery, true);
+    }
   };
 
   const openAddModal = () => {
@@ -148,7 +188,7 @@ export default function AdminCategories() {
 
       Alert.alert("Success", "Category saved successfully.");
       closeModal();
-      loadCategories();
+      loadCategories(1, searchQuery, false);
     } catch (err: any) {
       console.log("Category save error:", err);
       Alert.alert("Save Failed", err.response?.data?.message || err.message);
@@ -168,7 +208,7 @@ export default function AdminCategories() {
             setLoading(true);
             await apiClient.delete(`/api/v1/categories/${id}`);
             Alert.alert("Success", "Category deleted.");
-            loadCategories();
+            loadCategories(1, searchQuery, false);
           } catch (err: any) {
             Alert.alert("Delete Failed", err.response?.data?.message || err.message);
           } finally {
@@ -179,9 +219,7 @@ export default function AdminCategories() {
     ]);
   };
 
-  const filteredCategories = categories.filter((cat) => {
-    return cat.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-  });
+  // Server filtered categories list
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -234,44 +272,56 @@ export default function AdminCategories() {
           </View>
         )}
 
-        {filteredCategories.length === 0 ? (
+        {categories.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching categories found." : "No categories saved."}
           </Text>
         ) : (
-          filteredCategories.map((cat) => (
-            <Card key={cat._id} style={[styles.listCard, { alignItems: "center", borderColor: colors.border }]}>
-              {/* Category thumbnail */}
-              {(cat as any).image ? (
-                <Image
-                  source={{ uri: (cat as any).image }}
-                  style={styles.categoryThumb}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.categoryThumbPlaceholder, { backgroundColor: colors.inputBg }]}>
-                  <Ionicons name="image-outline" size={20} color={colors.textMuted} />
+          <>
+            {categories.map((cat) => (
+              <Card key={cat._id} style={[styles.listCard, { alignItems: "center", borderColor: colors.border }]}>
+                {/* Category thumbnail */}
+                {(cat as any).image ? (
+                  <Image
+                    source={{ uri: (cat as any).image }}
+                    style={styles.categoryThumb}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.categoryThumbPlaceholder, { backgroundColor: colors.inputBg }]}>
+                    <Ionicons name="image-outline" size={20} color={colors.textMuted} />
+                  </View>
+                )}
+                <Text variant="sm" weight="bold" style={{ flex: 1, marginLeft: SPACING.sm }}>
+                  {cat.name.toUpperCase()}
+                </Text>
+                <View style={styles.listCardActions}>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => openEditModal(cat)}
+                  >
+                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.listActionIcon}
+                    onPress={() => handleDeleteCategory(cat._id)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
                 </View>
-              )}
-              <Text variant="sm" weight="bold" style={{ flex: 1, marginLeft: SPACING.sm }}>
-                {cat.name.toUpperCase()}
-              </Text>
-              <View style={styles.listCardActions}>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => openEditModal(cat)}
-                >
-                  <Ionicons name="create-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.listActionIcon}
-                  onPress={() => handleDeleteCategory(cat._id)}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            </Card>
-          ))
+              </Card>
+            ))}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 

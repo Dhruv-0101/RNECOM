@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, FlatList, Dimensions, ActivityIndicator } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  Dimensions,
+  ActivityIndicator,
+} from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,9 +20,16 @@ import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { useCategories } from "@/src/features/categories/hooks/useCategories";
 import { useProducts } from "@/src/features/products/hooks/useProducts";
 import { ProductCard } from "@/src/features/products/components/ProductCard";
+import {
+  ProductSkeletonCard,
+  CategorySkeletonItem,
+  ProductSkeletonFooter,
+} from "@/src/shared/ui/Skeleton";
 import { Category } from "@/src/features/categories/types/category.types";
 import { Product } from "@/src/features/products/types/product.types";
 import { ENV } from "@/src/config/env";
+import { PRODUCT_PAGINATION } from "@/src/features/products/config/pagination";
+import { CATEGORY_PAGINATION } from "@/src/features/categories/config/pagination";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = 100;
@@ -28,7 +42,6 @@ const mockNoneCategory: Category = {
   name: "None",
   image: "",
   products: [],
-  user: "",
   createdAt: "",
   updatedAt: "",
 };
@@ -36,32 +49,83 @@ const mockNoneCategory: Category = {
 export default function Categories() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const { category: routeCategory } = useLocalSearchParams<{ category?: string }>();
+  const { category: routeCategory } = useLocalSearchParams<{
+    category?: string;
+  }>();
+
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
+  const [page, setPage] = useState(1);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [hasMoreCategories, setHasMoreCategories] = useState(true);
 
   // Fetch categories using custom React Query hook
   const {
     data: categoriesData,
     isLoading: isCategoriesLoading,
+    isFetching: isCategoriesFetching,
     error: categoriesError,
     refetch: refetchCategories,
-  } = useCategories();
+  } = useCategories({
+    page: categoryPage,
+    limit: CATEGORY_PAGINATION.SIDEBAR_LIMIT,
+  });
 
-  const categories = categoriesData?.categories || [];
   const categoriesWithNone = useMemo(() => {
-    return [mockNoneCategory, ...categories];
-  }, [categories]);
+    return [mockNoneCategory, ...categoriesList];
+  }, [categoriesList]);
 
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [page, setPage] = useState(1);
-  const [productsList, setProductsList] = useState<Product[]>([]);
-  const [hasMore, setHasMore] = useState(true);
+  // Sync server categories into aggregated local state for pagination
+  useEffect(() => {
+    if (categoriesData?.categories) {
+      const fetchedCategories = categoriesData.categories;
+      if (categoryPage === 1) {
+        setCategoriesList(fetchedCategories);
+      } else {
+        setCategoriesList((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedCategories.filter(
+            (c) => !existingIds.has(c._id),
+          );
+          return [...prev, ...uniqueNew];
+        });
+      }
+      if (fetchedCategories.length < CATEGORY_PAGINATION.SIDEBAR_LIMIT) {
+        setHasMoreCategories(false);
+      } else {
+        setHasMoreCategories(true);
+      }
+    }
+  }, [categoriesData, categoryPage]);
 
+  /*
+  We set setProductsList([]) here for three main reasons:
+
+1. Showing the Loading Skeletons
+In the component, we determine whether to show the loading skeleton cards using this condition:
+
+const displayedProducts = (isProductsLoading && productsList.length === 0) || isCategoriesLoading 
+  ? dummyProductSkeletons 
+  : productsList;
+If we do not clear the productsList (meaning productsList.length > 0), the screen will continue to show the old category's products while the new category's products are being fetched from the backend. The user won't see the premium loading skeletons, making the app feel frozen or unresponsive.
+
+2. Preventing "Stale Data" Display
+If you switch from Electronics to Clothing, keeping the old products list means the user will see phones and laptops labeled under the Clothing header for a split second until the backend request completes. Clearing the list ensures they don't see incorrect, mismatched data.
+
+3. Resetting Pagination for the New Category
+Since we reset setPage(1), the new query is starting fresh on Page 1. Clearing the accumulated list prevents new products from being appended or incorrectly merged with the old category's products.
+  */
   // Set selected category from route parameter or fall back to default None
   useEffect(() => {
-    if (categories.length > 0) {
+    if (categoriesList.length > 0) {
       if (routeCategory) {
-        const matchedCategory = categories.find(
-          (c) => c.name.toLowerCase() === routeCategory.toLowerCase()
+        const matchedCategory = categoriesList.find(
+          (c) => c.name.toLowerCase() === routeCategory.toLowerCase(),
         );
         if (matchedCategory) {
           setSelectedCategory(matchedCategory);
@@ -80,7 +144,10 @@ export default function Categories() {
         setHasMore(true);
       }
     }
-  }, [categories, routeCategory]);
+  }, [categoriesList, routeCategory]);
+  /*
+  जब आप होम स्क्रीन से आते हैं, तो स्क्रीन पर पहले से लोड हो चुके पुराने/स्टेल (stale) प्रोडक्ट्स को हटाने के लिए और नयी सिलेक्टेड कैटेगरी के लिए लोडिंग स्केलेटन को एक्टिवेट करने के लिए लिस्ट को खाली किया जाता है।
+  */
 
   // Read global search query from Redux store
   const searchQuery = useSelector((state: RootState) => state.search.query);
@@ -96,10 +163,13 @@ export default function Categories() {
   const queryParams = useMemo(() => {
     if (!selectedCategory) return undefined;
     return {
-      category: selectedCategory._id === "none_category" ? undefined : selectedCategory.name,
+      category:
+        selectedCategory._id === "none_category"
+          ? undefined
+          : selectedCategory.name,
       name: searchQuery || undefined,
       page,
-      limit: 10,
+      limit: PRODUCT_PAGINATION.CATEGORY_LIMIT,
     };
   }, [selectedCategory, searchQuery, page]);
 
@@ -119,18 +189,49 @@ export default function Categories() {
       } else {
         setProductsList((prev) => {
           const existingIds = new Set(prev.map((p) => p._id));
-          const uniqueNew = fetchedProducts.filter((p) => !existingIds.has(p._id));
+          const uniqueNew = fetchedProducts.filter(
+            (p) => !existingIds.has(p._id),
+          );
           return [...prev, ...uniqueNew];
         });
       }
       // If server returned less than our page limit, we've reached the end
-      if (fetchedProducts.length < 10) {
+      if (fetchedProducts.length < PRODUCT_PAGINATION.CATEGORY_LIMIT) {
         setHasMore(false);
       } else {
         setHasMore(true);
       }
     }
   }, [productsData, page]);
+
+  const dummySidebarSkeletons = useMemo(
+    () =>
+      Array.from(
+        { length: CATEGORY_PAGINATION.SIDEBAR_LIMIT },
+        (_, i) =>
+          ({
+            _id: `sidebar-skeleton-${i}`,
+            isSkeleton: true,
+          }) as unknown as Category,
+      ),
+    [],
+  );
+  const dummyProductSkeletons = useMemo(
+    () =>
+      Array.from(
+        { length: PRODUCT_PAGINATION.CATEGORY_LIMIT },
+        (_, i) =>
+          ({
+            _id: `product-skeleton-${i}`,
+            isSkeleton: true,
+          }) as unknown as Product,
+      ),
+    [],
+  );
+  const displayedProducts =
+    (isProductsLoading && productsList.length === 0) || isCategoriesLoading
+      ? dummyProductSkeletons
+      : productsList;
 
   // Helper to resolve absolute URLs or local dev server paths for category images
   const getCategoryImageUrl = (imagePath: string) => {
@@ -142,15 +243,21 @@ export default function Categories() {
     return { uri: `${ENV.API_URL}${cleanPath}` };
   };
 
-  // Pull to refresh handler for products
+  // Pull to refresh handler for products and categories
   const handleRefreshProducts = () => {
     setPage(1);
     setProductsList([]);
     setHasMore(true);
-    refetchProducts();
+    refetchProducts().catch(() => {});
+
+    if (categoryPage === 1) {
+      refetchCategories().catch(() => {});
+    } else {
+      setCategoryPage(1);
+    }
   };
 
-  // Trigger loading next page when scrolling reaches end
+  // Trigger loading next page of products
   const handleLoadMore = () => {
     if (hasMore && !isProductsFetching && !isProductsLoading) {
       setPage((p) => p + 1);
@@ -166,6 +273,9 @@ export default function Categories() {
 
   // Rendering individual category item in the left sidebar
   const renderCategoryItem = ({ item }: { item: Category }) => {
+    if ("isSkeleton" in item) {
+      return <CategorySkeletonItem />;
+    }
     const isActive = selectedCategory?._id === item._id;
     const displayName = item.name.charAt(0).toUpperCase() + item.name.slice(1);
     const categoryImage = getCategoryImageUrl(item.image);
@@ -183,7 +293,12 @@ export default function Categories() {
         onPress={() => handleCategorySelect(item)}
       >
         {isActive && (
-          <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} />
+          <View
+            style={[
+              styles.activeIndicator,
+              { backgroundColor: colors.primary },
+            ]}
+          />
         )}
         <View
           style={[
@@ -195,7 +310,11 @@ export default function Categories() {
           ]}
         >
           {isNone ? (
-            <Ionicons name="apps-outline" size={18} color={isActive ? colors.primary : colors.textMuted} />
+            <Ionicons
+              name="apps-outline"
+              size={18}
+              color={isActive ? colors.primary : colors.textMuted}
+            />
           ) : categoryImage ? (
             <Image
               source={categoryImage}
@@ -222,25 +341,27 @@ export default function Categories() {
     );
   };
 
-  // Render Full Screen Loading
-  if (isCategoriesLoading) {
-    return (
-      <View style={[styles.loaderContainer, { backgroundColor: colors.background }]}>
-        <Loader size="large" />
-      </View>
-    );
-  }
+  // Render Full Screen Loading bypassed in favor of skeleton loading
 
   // Render Categories Loading Error Screen
   if (categoriesError) {
     return (
-      <View style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.errorContainer, { backgroundColor: colors.background }]}
+      >
         <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
         <Text variant="md" weight="semibold" style={{ marginTop: SPACING.md }}>
           Failed to load categories
         </Text>
-        <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xs }}>
-          {categoriesError instanceof Error ? categoriesError.message : "An unexpected error occurred"}
+        <Text
+          variant="sm"
+          color={colors.textMuted}
+          align="center"
+          style={{ marginTop: SPACING.xs }}
+        >
+          {categoriesError instanceof Error
+            ? categoriesError.message
+            : "An unexpected error occurred"}
         </Text>
         <Button
           title="Retry"
@@ -257,76 +378,160 @@ export default function Categories() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Left Sidebar - Categories List (includes None) */}
-      <View style={[styles.sidebar, { backgroundColor: colors.surface, borderRightColor: colors.border }]}>
+      <View
+        style={[
+          styles.sidebar,
+          { backgroundColor: colors.surface, borderRightColor: colors.border },
+        ]}
+      >
         <FlatList
-          data={categoriesWithNone}
+          data={
+            isCategoriesLoading && categoriesList.length === 0
+              ? dummySidebarSkeletons
+              : categoriesWithNone
+          }
           keyExtractor={(item) => item._id}
           renderItem={renderCategoryItem}
           contentContainerStyle={styles.sidebarContent}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            !isCategoriesLoading && hasMoreCategories ? (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={[
+                  styles.loadMoreSidebarBtn,
+                  {
+                    borderColor: colors.primary,
+                    backgroundColor: isDark
+                      ? "rgba(99, 102, 241, 0.05)"
+                      : "#eff6ff",
+                  },
+                ]}
+                onPress={() => setCategoryPage((p) => p + 1)}
+              >
+                {isCategoriesFetching ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={16} color={colors.primary} />
+                    <Text
+                      variant="xxs"
+                      weight="bold"
+                      color={colors.primary}
+                      style={{ marginTop: 2 }}
+                    >
+                      Load More
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : isCategoriesFetching && categoryPage > 1 ? (
+              <View style={{ paddingVertical: 12 }}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : null
+          }
         />
       </View>
 
       {/* Right Grid - Products List */}
       <View style={styles.rightPanel}>
-        {selectedCategory ? (
+        {selectedCategory || isCategoriesLoading ? (
           <FlatList
-            data={productsList}
+            data={displayedProducts}
             keyExtractor={(item) => item._id}
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.rightPanelContent}
             onRefresh={handleRefreshProducts}
             refreshing={isProductsFetching && page === 1 && !isProductsLoading}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
             ListHeaderComponent={
               <View style={styles.rightPanelHeader}>
-                <Text variant="lg" weight="bold" color={colors.text} style={styles.categoryTitle}>
-                  {selectedCategory.name === "None" ? "All Products" : selectedCategory.name}
+                <Text
+                  variant="lg"
+                  weight="bold"
+                  color={colors.text}
+                  style={styles.categoryTitle}
+                >
+                  {isCategoriesLoading
+                    ? "All Products"
+                    : selectedCategory?.name === "None"
+                      ? "All Products"
+                      : selectedCategory?.name}
                 </Text>
-                {!isProductsLoading && (
-                  <Text variant="xs" color={colors.textMuted} style={styles.productCount}>
-                    {productsData?.total || productsList.length} {(productsData?.total || productsList.length) === 1 ? "product" : "products"} available
+                {!isProductsLoading && !isCategoriesLoading && (
+                  <Text
+                    variant="xs"
+                    color={colors.textMuted}
+                    style={styles.productCount}
+                  >
+                    {productsData?.total || productsList.length}{" "}
+                    {(productsData?.total || productsList.length) === 1
+                      ? "product"
+                      : "products"}{" "}
+                    available
                   </Text>
                 )}
               </View>
             }
-            renderItem={({ item }) => (
-              <ProductCard
-                product={item}
-                width={CARD_WIDTH}
-                onPress={(prod) => {
-                  router.push({
-                    pathname: "/product/[id]",
-                    params: { id: prod._id },
-                  });
-                }}
-              />
-            )}
+            renderItem={({ item }) => {
+              if ("isSkeleton" in item) {
+                return <ProductSkeletonCard width={CARD_WIDTH} />;
+              }
+              return (
+                <ProductCard
+                  product={item}
+                  width={CARD_WIDTH}
+                  onPress={(prod) => {
+                    router.push({
+                      pathname: "/product/[id]",
+                      params: { id: prod._id },
+                    });
+                  }}
+                />
+              );
+            }}
             ListFooterComponent={
               isProductsFetching && page > 1 ? (
-                <View style={styles.loaderContainer}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                <ProductSkeletonFooter
+                  count={PRODUCT_PAGINATION.CATEGORY_LIMIT}
+                  cardWidth={CARD_WIDTH}
+                />
+              ) : hasMore && productsList.length > 0 ? (
+                <View style={styles.loadMoreProductsWrapper}>
+                  <Button
+                    title="Load More Products"
+                    onPress={handleLoadMore}
+                    loading={isProductsFetching}
+                    icon="chevron-down-outline"
+                    variant="outline"
+                    style={{
+                      height: 40,
+                      borderRadius: 20,
+                    }}
+                  />
                 </View>
               ) : null
             }
             ListEmptyComponent={
-              isProductsLoading ? (
-                <View style={styles.loaderContainer}>
-                  <Loader size="large" />
-                </View>
-              ) : (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="basket-outline" size={48} color={colors.textMuted} />
-                  <Text variant="md" weight="semibold" style={styles.emptyTitle}>
-                    No Products Found
-                  </Text>
-                  <Text variant="sm" color={colors.textMuted} align="center" style={styles.emptySubtitle}>
-                    There are no products available matching this query.
-                  </Text>
-                </View>
-              )
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name="basket-outline"
+                  size={48}
+                  color={colors.textMuted}
+                />
+                <Text variant="md" weight="semibold" style={styles.emptyTitle}>
+                  No Products Found
+                </Text>
+                <Text
+                  variant="sm"
+                  color={colors.textMuted}
+                  align="center"
+                  style={styles.emptySubtitle}
+                >
+                  There are no products available matching this query.
+                </Text>
+              </View>
             }
           />
         ) : (
@@ -361,6 +566,16 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
   },
+  loadMoreSidebarBtn: {
+    paddingVertical: SPACING.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: BORDER_RADIUS.sm,
+    marginVertical: SPACING.xs,
+    marginHorizontal: SPACING.xs,
+  },
   activeIndicator: {
     position: "absolute",
     left: 2,
@@ -394,6 +609,11 @@ const styles = StyleSheet.create({
   rightPanelContent: {
     padding: PADDING,
     paddingBottom: SPACING.xxl,
+  },
+  loadMoreProductsWrapper: {
+    marginVertical: SPACING.md,
+    alignItems: "stretch",
+    paddingHorizontal: SPACING.xs,
   },
   columnWrapper: {
     justifyContent: "space-between",

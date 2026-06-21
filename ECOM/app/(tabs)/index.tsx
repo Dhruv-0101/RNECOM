@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -16,40 +16,162 @@ import { useLogout } from "@/src/features/auth/hooks/useLogout";
 import { Text } from "@/src/shared/ui/Text";
 import { Button } from "@/src/shared/ui/Button";
 import { Card } from "@/src/shared/ui/Card";
-import { Loader } from "@/src/shared/ui/Loader";
 import { SPACING } from "@/src/shared/constants/spacing";
 import { useRouter } from "expo-router";
 import { useProducts } from "@/src/features/products/hooks/useProducts";
 import { useCategories } from "@/src/features/categories/hooks/useCategories";
 import { ProductCard } from "@/src/features/products/components/ProductCard";
-import { AuthRequiredModal } from "@/src/features/auth/components/AuthRequiredModal";
+import {
+  ProductSkeletonCard,
+  CategorySkeletonItem,
+  ProductSkeletonFooter,
+} from "@/src/shared/ui/Skeleton";
 import { Product } from "@/src/features/products/types/product.types";
+import { Category } from "@/src/features/categories/types/category.types";
 import { ENV } from "@/src/config/env";
+import { PRODUCT_PAGINATION } from "@/src/features/products/config/pagination";
+import { CATEGORY_PAGINATION } from "@/src/features/categories/config/pagination";
 
 export default function Home() {
-  const { colors, toggleTheme, theme, isDark } = useTheme();
-  const { user, isAuthenticated } = useCurrentUser();
-  const { logout } = useLogout();
+  const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useCurrentUser();
   const router = useRouter();
 
   // Search filter from Redux store
   const search = useSelector((state: RootState) => state.search.query);
 
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+
+  const [currentCategoryPage, setCurrentCategoryPage] = useState(1);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setCurrentProductPage(1);
+    setCurrentCategoryPage(1);
+    setProductsList([]);
+    setCategoriesList([]);
+  }, [search]);
+
   // TanStack query to fetch products
   const { data, isLoading, refetch, isFetching } = useProducts({
     name: search || undefined,
-    limit: 20,
+    page: currentProductPage,
+    limit: PRODUCT_PAGINATION.HOME_TRENDING_LIMIT,
   });
 
-  const products = data?.products || [];
-  const displayedProducts = products.slice(0, 8);
-  const hasMoreProducts = products.length > 8;
+  // Sync server products into local state
+  useEffect(() => {
+    if (data?.products) {
+      const fetchedProducts = data.products;
+      if (currentProductPage === 1) {
+        setProductsList(fetchedProducts);
+      } else {
+        setProductsList((prev) => {
+          const existingIds = new Set(prev.map((p) => p._id));
+          const uniqueNew = fetchedProducts.filter(
+            (p) => !existingIds.has(p._id),
+          );
+          return [...prev, ...uniqueNew];
+        });
+      }
+    }
+  }, [data, currentProductPage]);
 
   // Fetch categories
-  const { data: categoriesData } = useCategories();
-  const categories = categoriesData?.categories || [];
-  const displayedCategories = categories.length > 7 ? categories.slice(0, 6) : categories;
-  const hasMoreCategories = categories.length > 7;
+  const {
+    data: categoriesData,
+    isLoading: isCategoriesLoading,
+    isFetching: isCategoriesFetching,
+    refetch: refetchCategories,
+  } = useCategories({
+    page: currentCategoryPage,
+    limit: CATEGORY_PAGINATION.HOME_SLIDER_LIMIT,
+  });
+
+  // Sync server categories into local state
+  useEffect(() => {
+    if (categoriesData?.categories) {
+      const fetchedCategories = categoriesData.categories;
+      if (currentCategoryPage === 1) {
+        setCategoriesList(fetchedCategories);
+      } else {
+        setCategoriesList((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedCategories.filter(
+            (c) => !existingIds.has(c._id),
+          );
+          return [...prev, ...uniqueNew];
+        });
+      }
+    }
+  }, [categoriesData, currentCategoryPage]);
+
+  const dummyCategorySkeletons = useMemo(
+    () =>
+      Array.from(
+        { length: CATEGORY_PAGINATION.HOME_SLIDER_LIMIT },
+        (_, i) =>
+          ({
+            _id: `cat-skeleton-${i}`,
+            isSkeleton: true,
+          }) as unknown as Category,
+      ),
+    [],
+  );
+
+  const displayedCategories =
+    (isCategoriesLoading || isCategoriesFetching) && categoriesList.length === 0
+      ? dummyCategorySkeletons
+      : categoriesList;
+
+  const dummySkeletons = useMemo(
+    () =>
+      Array.from(
+        { length: PRODUCT_PAGINATION.HOME_TRENDING_LIMIT },
+        (_, i) =>
+          ({ _id: `skeleton-${i}`, isSkeleton: true }) as unknown as Product,
+      ),
+    [],
+  );
+  const displayedProducts =
+    (isLoading || isFetching) && productsList.length === 0
+      ? dummySkeletons
+      : productsList;
+
+  const hasMoreToLoad =
+    productsList.length > 0 &&
+    productsList.length < 12 &&
+    (data?.products?.length || 0) === PRODUCT_PAGINATION.HOME_TRENDING_LIMIT;
+
+  const shouldShowExplore =
+    productsList.length > 0 &&
+    (productsList.length >= 12 ||
+      (data?.products?.length || 0) < PRODUCT_PAGINATION.HOME_TRENDING_LIMIT);
+
+  const hasMoreCategoriesToLoad =
+    categoriesList.length > 0 &&
+    categoriesList.length < 10 &&
+    (categoriesData?.categories?.length || 0) ===
+      CATEGORY_PAGINATION.HOME_SLIDER_LIMIT;
+
+  const shouldShowExploreCategories =
+    categoriesList.length > 0 &&
+    (categoriesList.length >= 10 ||
+      (categoriesData?.categories?.length || 0) <
+        CATEGORY_PAGINATION.HOME_SLIDER_LIMIT);
+
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        currentProductPage === 1 ? refetch() : Promise.resolve(setCurrentProductPage(1)),
+        currentCategoryPage === 1 ? refetchCategories() : Promise.resolve(setCurrentCategoryPage(1)),
+      ]);
+    } catch (err) {
+      console.log("Error during pull-to-refresh:", err);
+    }
+  };
 
   const getCategoryImageUrl = (imagePath: string) => {
     if (!imagePath) return null;
@@ -68,8 +190,8 @@ export default function Home() {
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.scrollContent}
-        onRefresh={refetch}
-        refreshing={isFetching && !isLoading}
+        onRefresh={handleRefresh}
+        refreshing={isFetching && currentProductPage === 1 && !isLoading}
         ListHeaderComponent={
           <View style={styles.headerContainer}>
             {/* Greetings Banner
@@ -116,7 +238,7 @@ export default function Home() {
             )}
 
             {/* Horizontal Categories */}
-            {categories.length > 0 && !search && (
+            {(isCategoriesLoading || categoriesList.length > 0) && !search && (
               <View style={styles.categoriesSection}>
                 <Text
                   variant="md"
@@ -130,97 +252,162 @@ export default function Home() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.categoriesScroll}
                 >
-                  {displayedCategories.map((item) => {
-                    const categoryImage = getCategoryImageUrl(item.image);
-                    const displayName =
-                      item.name.charAt(0).toUpperCase() + item.name.slice(1);
-                    return (
-                      <TouchableOpacity
-                        key={item._id}
-                        activeOpacity={0.75}
-                        style={styles.categoryItem}
-                        onPress={() => {
-                          router.push({
-                            pathname: "/categories",
-                            params: { category: item.name },
-                          });
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.categoryImageWrapper,
-                            {
-                              backgroundColor: isDark
-                                ? colors.surface
-                                : "#f1f5f9",
-                              borderColor: colors.border,
-                            },
-                          ]}
+                  {(isCategoriesLoading || isCategoriesFetching) &&
+                  categoriesList.length === 0 ? (
+                    Array.from({
+                      length: CATEGORY_PAGINATION.HOME_SLIDER_LIMIT,
+                    }).map((_, i) => (
+                      <CategorySkeletonItem key={`cat-skeleton-${i}`} />
+                    ))
+                  ) : (
+                    <>
+                      {displayedCategories.map((item) => {
+                        if ("isSkeleton" in item) {
+                          return <CategorySkeletonItem key={item._id} />;
+                        }
+                        const categoryImage = getCategoryImageUrl(item.image);
+                        const displayName =
+                          item.name.charAt(0).toUpperCase() +
+                          item.name.slice(1);
+                        return (
+                          <TouchableOpacity
+                            key={item._id}
+                            activeOpacity={0.75}
+                            style={styles.categoryItem}
+                            onPress={() => {
+                              router.push({
+                                pathname: "/categories",
+                                params: { category: item.name },
+                              });
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.categoryImageWrapper,
+                                {
+                                  backgroundColor: isDark
+                                    ? colors.surface
+                                    : "#f1f5f9",
+                                  borderColor: colors.border,
+                                },
+                              ]}
+                            >
+                              {categoryImage ? (
+                                <Image
+                                  source={categoryImage}
+                                  style={styles.categoryImage}
+                                  contentFit="cover"
+                                />
+                              ) : (
+                                <Ionicons
+                                  name="grid-outline"
+                                  size={20}
+                                  color={colors.textMuted}
+                                />
+                              )}
+                            </View>
+                            <Text
+                              variant="xs"
+                              weight="semibold"
+                              color={colors.text}
+                              align="center"
+                              numberOfLines={1}
+                              style={styles.categoryName}
+                            >
+                              {displayName}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+
+                      {isCategoriesFetching &&
+                        currentCategoryPage > 1 &&
+                        Array.from({
+                          length: CATEGORY_PAGINATION.HOME_SLIDER_LIMIT,
+                        }).map((_, i) => (
+                          <CategorySkeletonItem
+                            key={`cat-loading-skeleton-${i}`}
+                          />
+                        ))}
+
+                      {!isCategoriesFetching && hasMoreCategoriesToLoad && (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          style={styles.categoryItem}
+                          onPress={() => {
+                            setCurrentCategoryPage((p) => p + 1);
+                          }}
                         >
-                          {categoryImage ? (
-                            <Image
-                              source={categoryImage}
-                              style={styles.categoryImage}
-                              contentFit="cover"
-                            />
-                          ) : (
+                          <View
+                            style={[
+                              styles.categoryImageWrapper,
+                              {
+                                backgroundColor: isDark
+                                  ? colors.surface
+                                  : "#f8fafc",
+                                borderColor: colors.primary,
+                                borderWidth: 1.5,
+                              },
+                            ]}
+                          >
                             <Ionicons
-                              name="grid-outline"
-                              size={20}
-                              color={colors.textMuted}
+                              name="chevron-forward"
+                              size={24}
+                              color={colors.primary}
                             />
-                          )}
-                        </View>
-                        <Text
-                          variant="xs"
-                          weight="semibold"
-                          color={colors.text}
-                          align="center"
-                          numberOfLines={1}
-                          style={styles.categoryName}
+                          </View>
+                          <Text
+                            variant="xs"
+                            weight="semibold"
+                            color={colors.primary}
+                            align="center"
+                            numberOfLines={1}
+                            style={styles.categoryName}
+                          >
+                            Load More
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {!isCategoriesFetching && shouldShowExploreCategories && (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          style={styles.categoryItem}
+                          onPress={() => {
+                            router.push("/categories");
+                          }}
                         >
-                          {displayName}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {hasMoreCategories && (
-                    <TouchableOpacity
-                      activeOpacity={0.75}
-                      style={styles.categoryItem}
-                      onPress={() => {
-                        router.push("/categories");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.categoryImageWrapper,
-                          {
-                            backgroundColor: isDark
-                              ? colors.surface
-                              : "#eff6ff",
-                            borderColor: colors.primary,
-                            borderWidth: 1.5,
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name="chevron-forward"
-                          size={24}
-                          color={colors.primary}
-                        />
-                      </View>
-                      <Text
-                        variant="xs"
-                        weight="semibold"
-                        color={colors.primary}
-                        align="center"
-                        numberOfLines={1}
-                        style={styles.categoryName}
-                      >
-                        More
-                      </Text>
-                    </TouchableOpacity>
+                          <View
+                            style={[
+                              styles.categoryImageWrapper,
+                              {
+                                backgroundColor: isDark
+                                  ? colors.surface
+                                  : "#eff6ff",
+                                borderColor: colors.primary,
+                                borderWidth: 1.5,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="chevron-forward"
+                              size={24}
+                              color={colors.primary}
+                            />
+                          </View>
+                          <Text
+                            variant="xs"
+                            weight="semibold"
+                            color={colors.primary}
+                            align="center"
+                            numberOfLines={1}
+                            style={styles.categoryName}
+                          >
+                            Explore
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </ScrollView>
               </View>
@@ -232,40 +419,64 @@ export default function Home() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            onPress={(prod) => {
-              router.push({
-                pathname: "/product/[id]",
-                params: { id: prod._id },
-              });
-            }}
-          />
-        )}
+        renderItem={({ item }) => {
+          if ("isSkeleton" in item) {
+            return <ProductSkeletonCard />;
+          }
+          return (
+            <ProductCard
+              product={item}
+              onPress={(prod) => {
+                router.push({
+                  pathname: "/product/[id]",
+                  params: { id: prod._id },
+                });
+              }}
+            />
+          );
+        }}
         ListEmptyComponent={
-          isLoading ? (
-            <Loader />
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text variant="md" color={colors.textMuted} align="center">
-                No products found matching your search.
-              </Text>
-            </View>
-          )
+          <View style={styles.emptyContainer}>
+            <Text variant="md" color={colors.textMuted} align="center">
+              No products found matching your search.
+            </Text>
+          </View>
         }
         ListFooterComponent={
-          hasMoreProducts ? (
+          isFetching && currentProductPage > 1 ? (
+            <ProductSkeletonFooter
+              count={PRODUCT_PAGINATION.HOME_TRENDING_LIMIT}
+            />
+          ) : (
             <View style={styles.footerContainer}>
-              <Button
-                title="Explore More Products"
-                onPress={() => router.push("/categories")}
-                icon="arrow-forward-outline"
-                variant="outline"
-                style={{ marginBottom: SPACING.md, height: 48, borderRadius: 24 }}
-              />
+              {hasMoreToLoad && (
+                <Button
+                  title="Load More Products"
+                  onPress={() => setCurrentProductPage((p) => p + 1)}
+                  icon="chevron-down-outline"
+                  variant="outline"
+                  style={{
+                    marginBottom: SPACING.md,
+                    height: 48,
+                    borderRadius: 24,
+                  }}
+                />
+              )}
+              {shouldShowExplore && (
+                <Button
+                  title="Explore More Products"
+                  onPress={() => router.push("/categories")}
+                  icon="arrow-forward-outline"
+                  variant="outline"
+                  style={{
+                    marginBottom: SPACING.md,
+                    height: 48,
+                    borderRadius: 24,
+                  }}
+                />
+              )}
             </View>
-          ) : null
+          )
         }
       />
     </View>

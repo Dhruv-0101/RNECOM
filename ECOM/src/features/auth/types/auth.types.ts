@@ -36,7 +36,21 @@ export interface PopulatedOrder {
     price: number;
     description?: string;
   }[];
-  shippingAddress: NonNullable<UserProfile["shippingAddress"]>;
+  shippingAddress: {
+    firstName?: string;
+    lastName?: string;
+    address?: string;
+    city?: string;
+    postalCode?: string;
+    province?: string;
+    country?: string;
+    phone?: string;
+    recipientFirstName?: string;
+    recipientLastName?: string;
+    streetAddress?: string;
+    state?: string;
+    recipientPhone?: string;
+  };
   paymentStatus: string;
   paymentMethod?: string;
   totalPrice: number;

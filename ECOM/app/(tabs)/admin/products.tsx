@@ -23,6 +23,10 @@ import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { Product } from "@/src/features/products/types/product.types";
 import { Category } from "@/src/features/categories/types/category.types";
+import { PRODUCT_PAGINATION } from "@/src/features/products/config/pagination";
+import { BRAND_PAGINATION } from "@/src/features/brands/config/pagination";
+import { CATEGORY_PAGINATION } from "@/src/features/categories/config/pagination";
+import { COLOR_PAGINATION } from "@/src/features/colors/config/pagination";
 
 interface BrandOrColor {
   _id: string;
@@ -36,6 +40,8 @@ export default function AdminProducts() {
   const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [brands, setBrands] = useState<BrandOrColor[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -64,35 +70,86 @@ export default function AdminProducts() {
   // Image picker state for products (array of URIs)
   const [productImageUris, setProductImageUris] = useState<string[]>([]);
 
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadStaticData = async () => {
     try {
-      const [prodRes, brandRes, catRes, colorRes] = await Promise.all([
-        apiClient.get("/api/v1/products?limit=1000"),
-        apiClient.get("/api/v1/brands?limit=1000"),
-        apiClient.get("/api/v1/categories?limit=1000"),
-        apiClient.get("/api/v1/colors?limit=1000"),
+      const [brandRes, catRes, colorRes] = await Promise.all([
+        apiClient.get(`/api/v1/brands?limit=${BRAND_PAGINATION.DEFAULT_LIMIT}`),
+        apiClient.get(`/api/v1/categories?limit=${CATEGORY_PAGINATION.DEFAULT_LIMIT}`),
+        apiClient.get(`/api/v1/colors?limit=${COLOR_PAGINATION.DEFAULT_LIMIT}`),
       ]);
-      setProducts(prodRes.data?.products || []);
       setBrands(brandRes.data?.brands || []);
       setCategories(catRes.data?.categories || []);
       setColorsList(colorRes.data?.colors || []);
     } catch (err) {
-      console.log("Failed to load products list context:", err);
-      Alert.alert("Error", "Could not fetch products context lists from backend database.");
+      console.log("Failed to load select options context:", err);
+    }
+  };
+
+  const loadProducts = async (pageNum: number, searchVal: string, isAppend = false) => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get("/api/v1/products", {
+        params: {
+          page: pageNum,
+          limit: PRODUCT_PAGINATION.DEFAULT_LIMIT,
+          name: searchVal || undefined,
+        },
+      });
+      const fetchedProducts = res.data?.products || [];
+      if (isAppend) {
+        setProducts((prev) => {
+          const existingIds = new Set(prev.map((p) => p._id));
+          const uniqueNew = fetchedProducts.filter((p: any) => !existingIds.has(p._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setProducts(fetchedProducts);
+      }
+
+      if (fetchedProducts.length < PRODUCT_PAGINATION.DEFAULT_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
+    } catch (err) {
+      console.log("Failed to load products list:", err);
+      Alert.alert("Error", "Could not fetch products list from backend database.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAllData();
+    loadStaticData();
   }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadProducts(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadAllData();
+    setPage(1);
+    setHasMore(true);
+    await Promise.all([
+      loadStaticData(),
+      loadProducts(1, searchQuery, false),
+    ]);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadProducts(nextPage, searchQuery, true);
+    }
   };
 
   const openAddModal = () => {
@@ -200,7 +257,7 @@ export default function AdminProducts() {
         Alert.alert("Success", "Product updated successfully!");
       }
       closeModal();
-      loadAllData();
+      loadProducts(1, searchQuery, false);
     } catch (err: any) {
       console.log("Product save error:", err);
       Alert.alert("Save Failed", err.response?.data?.message || err.message || "An error occurred.");
@@ -220,7 +277,7 @@ export default function AdminProducts() {
             setLoading(true);
             await apiClient.delete(`/api/v1/products/${productId}/delete`);
             Alert.alert("Success", "Product deleted successfully.");
-            loadAllData();
+            loadProducts(1, searchQuery, false);
           } catch (err: any) {
             console.log("Delete product error:", err);
             Alert.alert("Delete Failed", err.response?.data?.message || err.message);
@@ -252,9 +309,7 @@ export default function AdminProducts() {
     });
   };
 
-  const filteredProducts = products.filter((prod) => {
-    return prod.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-  });
+  // Server filtered products list
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -307,54 +362,66 @@ export default function AdminProducts() {
           </View>
         )}
 
-        {filteredProducts.length === 0 ? (
+        {products.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching products found." : "No products found. Add some using the \"+\" button in the header."}
           </Text>
         ) : (
-          filteredProducts.map((prod) => (
-            <Card key={prod._id} style={[styles.productCard, { borderColor: colors.border }]}>
-              <View style={styles.productHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text variant="sm" weight="bold">
-                    {prod.name}
-                  </Text>
-                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    Brand: {prod.brand} | Category: {prod.category}
-                  </Text>
-                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    Stock: {prod.totalQty} items | Colors: {prod.colors?.join(", ") || "None"}
-                  </Text>
+          <>
+            {products.map((prod) => (
+              <Card key={prod._id} style={[styles.productCard, { borderColor: colors.border }]}>
+                <View style={styles.productHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="sm" weight="bold">
+                      {prod.name}
+                    </Text>
+                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                      Brand: {prod.brand} | Category: {prod.category}
+                    </Text>
+                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                      Stock: {prod.totalQty} items | Colors: {prod.colors?.join(", ") || "None"}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text variant="sm" weight="bold" color={colors.primary}>
+                      ${prod.price.toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text variant="sm" weight="bold" color={colors.primary}>
-                    ${prod.price.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
 
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { borderColor: colors.border }]}
-                  onPress={() => openEditModal(prod)}
-                >
-                  <Ionicons name="create-outline" size={16} color={colors.primary} />
-                  <Text variant="xs" color={colors.primary} style={{ marginLeft: 4 }}>
-                    Edit Stock/Price
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { borderColor: colors.border }]}
-                  onPress={() => handleDeleteProduct(prod._id)}
-                >
-                  <Ionicons name="trash-outline" size={16} color={colors.error} />
-                  <Text variant="xs" color={colors.error} style={{ marginLeft: 4 }}>
-                    Delete
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          ))
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { borderColor: colors.border }]}
+                    onPress={() => openEditModal(prod)}
+                  >
+                    <Ionicons name="create-outline" size={16} color={colors.primary} />
+                    <Text variant="xs" color={colors.primary} style={{ marginLeft: 4 }}>
+                      Edit Stock/Price
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { borderColor: colors.border }]}
+                    onPress={() => handleDeleteProduct(prod._id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.error} />
+                    <Text variant="xs" color={colors.error} style={{ marginLeft: 4 }}>
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            ))}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 

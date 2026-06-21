@@ -25,7 +25,10 @@ interface LocationBottomSheetProps {
   onClose: () => void;
 }
 
-export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetProps) {
+export function LocationBottomSheet({
+  visible,
+  onClose,
+}: LocationBottomSheetProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,7 +43,7 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
 
   // Popular cities for quick selection chips
   const popularCities = useMemo(() => {
-    return CITIES.slice(0, 6); // First 6 cities: Ahmedabad, Surat, Vadodara, Rajkot, Gandhinagar, Mumbai
+    return CITIES.slice(0, 15); // First 6 cities: Ahmedabad, Surat, Vadodara, Rajkot, Gandhinagar, Mumbai
   }, []);
 
   // Filtered list of cities based on search query
@@ -50,7 +53,7 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
     return CITIES.filter(
       (item) =>
         item.city.toLowerCase().includes(query) ||
-        item.state.toLowerCase().includes(query)
+        item.state.toLowerCase().includes(query),
     );
   }, [searchQuery]);
 
@@ -73,6 +76,12 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
     onClose();
   };
 
+  /*
+  Overlay Modal Touch (Line 86): Click outside modal closure logic explain karne ke liye comment add kiya.
+Drag Handle (Line 99): Top indicator bar visual cues design pattern ke liye short explanation comment update kiya.
+KeyboardAvoidingView (Line 128): View shift functionality on soft keyboard trigger explain karne ke liye one-liner insert kiya.
+  */
+
   return (
     <Modal
       visible={visible}
@@ -80,6 +89,7 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
       animationType="slide"
       onRequestClose={onClose}
     >
+      {/* Dismisses/closes the bottom sheet modal when clicking outside on the dark background overlay */}
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -92,11 +102,15 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                 },
               ]}
             >
-              {/* Drag Handle Indicator */}
+              {/* Drag Handle Indicator: Visual cue showing that the sheet can be swiped or dragged down */}
               <View
                 style={[
                   styles.dragHandle,
-                  { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#cbd5e1" },
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.1)"
+                      : "#cbd5e1",
+                  },
                 ]}
               />
 
@@ -107,14 +121,17 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                 </Text>
                 <TouchableOpacity
                   onPress={onClose}
-                  style={[styles.closeButton, { backgroundColor: colors.inputBg }]}
+                  style={[
+                    styles.closeButton,
+                    { backgroundColor: colors.inputBg },
+                  ]}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="close" size={20} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
-              {/* Main Content */}
+              {/* Main Content - Wrapped in KeyboardAvoidingView to prevent inputs from being covered by the soft keyboard */}
               <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 style={styles.keyboardContainer}
@@ -126,9 +143,12 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                   style={[
                     styles.gpsButton,
                     {
-                      borderColor: colors.border,
-                      backgroundColor: isDark ? "rgba(99, 102, 241, 0.1)" : "#f5f3ff",
-                      borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#ddd6fe",
+                      backgroundColor: isDark
+                        ? "rgba(99, 102, 241, 0.1)"
+                        : "#f5f3ff",
+                      borderColor: isDark
+                        ? "rgba(99, 102, 241, 0.2)"
+                        : "#ddd6fe",
                     },
                   ]}
                   activeOpacity={0.7}
@@ -146,21 +166,44 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                       Using GPS to detect city
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.primary}
+                  />
                 </TouchableOpacity>
 
                 {/* GPS Fetch Error */}
                 {gpsError && (
-                  <View style={[styles.errorContainer, { backgroundColor: isDark ? "rgba(239,68,68,0.1)" : "#fef2f2" }]}>
-                    <Ionicons name="alert-circle" size={16} color={colors.error} />
-                    <Text variant="xs" color={colors.error} style={styles.errorText}>
+                  <View
+                    style={[
+                      styles.errorContainer,
+                      {
+                        backgroundColor: isDark
+                          ? "rgba(239,68,68,0.1)"
+                          : "#fef2f2",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="alert-circle"
+                      size={16}
+                      color={colors.error}
+                    />
+                    <Text
+                      variant="xs"
+                      color={colors.error}
+                      style={styles.errorText}
+                    >
                       {gpsError}
                     </Text>
                   </View>
                 )}
 
                 {/* Divider */}
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View
+                  style={[styles.divider, { backgroundColor: colors.border }]}
+                />
 
                 {/* 2. Manual Search Input */}
                 <View
@@ -172,7 +215,12 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                     },
                   ]}
                 >
-                  <Ionicons name="search" size={18} color={colors.inputPlaceholder} style={styles.searchIcon} />
+                  <Ionicons
+                    name="search"
+                    size={18}
+                    color={colors.inputPlaceholder}
+                    style={styles.searchIcon}
+                  />
                   <TextInput
                     placeholder="Search city, state..."
                     placeholderTextColor={colors.inputPlaceholder}
@@ -188,12 +236,18 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                 {/* Suggestions / Popular Cities */}
                 {searchQuery.trim().length === 0 ? (
                   <View style={styles.popularContainer}>
-                    <Text variant="xs" weight="semibold" color={colors.textMuted} style={styles.sectionTitle}>
+                    <Text
+                      variant="xs"
+                      weight="semibold"
+                      color={colors.textMuted}
+                      style={styles.sectionTitle}
+                    >
                       POPULAR CITIES
                     </Text>
                     <View style={styles.chipsContainer}>
                       {popularCities.map((cityItem) => {
-                        const isSelected = selectedLocation?.city === cityItem.city;
+                        const isSelected =
+                          selectedLocation?.city === cityItem.city;
                         return (
                           <TouchableOpacity
                             key={cityItem.city}
@@ -204,9 +258,11 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                                 backgroundColor: isSelected
                                   ? colors.primary
                                   : isDark
-                                  ? "rgba(255, 255, 255, 0.05)"
-                                  : "#f1f5f9",
-                                borderColor: isSelected ? colors.primary : colors.border,
+                                    ? "rgba(255, 255, 255, 0.05)"
+                                    : "#f1f5f9",
+                                borderColor: isSelected
+                                  ? colors.primary
+                                  : colors.border,
                               },
                             ]}
                           >
@@ -229,24 +285,47 @@ export function LocationBottomSheet({ visible, onClose }: LocationBottomSheetPro
                     renderItem={({ item }) => (
                       <TouchableOpacity
                         onPress={() => handleSelectCity(item)}
-                        style={[styles.resultItem, { borderBottomColor: colors.border }]}
+                        style={[
+                          styles.resultItem,
+                          { borderBottomColor: colors.border },
+                        ]}
                       >
-                        <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+                        <Ionicons
+                          name="location-outline"
+                          size={18}
+                          color={colors.textMuted}
+                        />
                         <View style={styles.resultTextContainer}>
-                          <Text variant="sm" weight="semibold" color={colors.text}>
+                          <Text
+                            variant="sm"
+                            weight="semibold"
+                            color={colors.text}
+                          >
                             {item.city}
                           </Text>
                           <Text variant="xs" color={colors.textMuted}>
                             {item.state}, {item.country}
                           </Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                        <Ionicons
+                          name="chevron-forward"
+                          size={14}
+                          color={colors.textMuted}
+                        />
                       </TouchableOpacity>
                     )}
                     ListEmptyComponent={
                       <View style={styles.emptyContainer}>
-                        <Ionicons name="search-outline" size={32} color={colors.textMuted} />
-                        <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.xs }}>
+                        <Ionicons
+                          name="search-outline"
+                          size={32}
+                          color={colors.textMuted}
+                        />
+                        <Text
+                          variant="sm"
+                          color={colors.textMuted}
+                          style={{ marginTop: SPACING.xs }}
+                        >
                           No cities found matching "{searchQuery}"
                         </Text>
                       </View>

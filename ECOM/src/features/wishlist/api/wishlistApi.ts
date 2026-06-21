@@ -14,8 +14,8 @@ export const wishlistApi = {
     return response.data;
   },
 
-  async getWishlist(): Promise<WishlistResponse> {
-    const response = await apiClient.get<WishlistResponse>(ENDPOINTS.WISHLIST.GET);
+  async getWishlist(params?: { page?: number; limit?: number }): Promise<WishlistResponse> {
+    const response = await apiClient.get<WishlistResponse>(ENDPOINTS.WISHLIST.GET, { params });
     return response.data;
   },
 

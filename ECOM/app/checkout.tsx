@@ -4,12 +4,12 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
 import * as WebBrowser from "expo-web-browser";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { Text } from "@/src/shared/ui/Text";
 import { Card } from "@/src/shared/ui/Card";
 import { Input } from "@/src/shared/ui/Input";
 import { Button } from "@/src/shared/ui/Button";
-import { AutoScrollingList } from "@/src/shared/ui/AutoScrollingList";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { RootState, AppDispatch } from "@/src/store/store";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
@@ -19,6 +19,9 @@ import { ordersApi } from "@/src/features/orders/api/ordersApi";
 import { couponsApi } from "@/src/features/coupons/api/couponsApi";
 import { useCoupons } from "@/src/features/coupons/hooks/useCoupons";
 import { Coupon } from "@/src/features/coupons/types/coupon.types";
+import { CouponSkeleton } from "@/src/shared/ui/Skeleton";
+import { COUPON_PAGINATION } from "@/src/features/coupons/config/pagination";
+
 import { clearCart } from "@/src/features/cart/store/cartSlice";
 import {
   updateFormFields,
@@ -35,6 +38,7 @@ import {
 export default function CheckoutScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
 
   const { user } = useCurrentUser();
@@ -82,9 +86,48 @@ export default function CheckoutScreen() {
     }
   }, [user, dispatch]);
 
-  // Coupon states
-  const { data: couponsData } = useCoupons();
-  const coupons = couponsData?.coupons || [];
+  // Coupon states with pagination
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [couponPage, setCouponPage] = useState(1);
+  const [hasMoreCoupons, setHasMoreCoupons] = useState(true);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+
+  const loadCoupons = async (pageNum: number, isAppend = false) => {
+    setLoadingCoupons(true);
+    try {
+      const res = await couponsApi.getCoupons({
+        page: pageNum,
+        limit: COUPON_PAGINATION.CHECKOUT_LIMIT,
+      });
+      const fetchedCoupons = res?.coupons || [];
+      if (isAppend) {
+        setCoupons((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedCoupons.filter((c) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setCoupons(fetchedCoupons);
+      }
+      setHasMoreCoupons(fetchedCoupons.length === COUPON_PAGINATION.CHECKOUT_LIMIT);
+    } catch (err) {
+      console.log("Failed to load coupons in checkout:", err);
+    } finally {
+      setLoadingCoupons(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadCoupons(1, false);
+  }, []);
+
+  const handleLoadMoreCoupons = async () => {
+    if (!loadingCoupons && hasMoreCoupons) {
+      const nextPage = couponPage + 1;
+      setCouponPage(nextPage);
+      await loadCoupons(nextPage, true);
+    }
+  };
 
   const activeCoupons = useMemo(() => {
     const now = new Date();
@@ -375,6 +418,8 @@ export default function CheckoutScreen() {
         style={{ flex: 1 }}
       >
         <View style={[styles.container, { backgroundColor: colors.background }]}>
+          {/* Status Bar Spacer */}
+          <View style={{ height: insets.top, backgroundColor: colors.surface }} />
           {/* Custom Header Bar */}
           <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <TouchableOpacity
@@ -726,43 +771,87 @@ export default function CheckoutScreen() {
                       </View>
 
                       {/* Horizontal Available Coupons List */}
-                      {activeCoupons.length > 0 && (
+                      {(loadingCoupons || activeCoupons.length > 0) && (
                         <View style={styles.availableCouponsWrapper}>
                           <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.availableCouponsTitle}>
                             AVAILABLE COUPONS
                           </Text>
-                          <AutoScrollingList
-                            data={activeCoupons}
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
                             contentContainerStyle={styles.couponsListScroll}
-                            renderItem={(item) => (
-                              <TouchableOpacity
-                                activeOpacity={0.7}
-                                onPress={() => handleQuickApplyCoupon(item.code)}
-                                style={[
-                                  styles.couponCard,
-                                  {
-                                    backgroundColor: isDark ? "rgba(99, 102, 241, 0.08)" : "#f5f3ff",
-                                    borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#ddd6fe",
-                                  },
-                                ]}
-                              >
-                                <View style={styles.couponCardLeft}>
-                                  <Text variant="xs" weight="bold" color={colors.primary}>
-                                    {item.code.toUpperCase()}
-                                  </Text>
-                                  <Text variant="xxs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                                    Save {item.discount}%
-                                  </Text>
-                                </View>
-                                <View style={[styles.couponDottedLine, { borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#c7d2fe" }]} />
-                                <View style={styles.couponCardRight}>
-                                  <Text variant="xs" weight="bold" color={colors.primary}>
-                                    APPLY
-                                  </Text>
-                                </View>
-                              </TouchableOpacity>
+                          >
+                            {loadingCoupons && coupons.length === 0 ? (
+                              Array.from({ length: COUPON_PAGINATION.CHECKOUT_LIMIT }).map((_, i) => (
+                                <CouponSkeleton key={`checkout-coupon-skeleton-${i}`} />
+                              ))
+                            ) : (
+                              <>
+                                {activeCoupons.map((item, index) => (
+                                  <TouchableOpacity
+                                    key={item._id || index}
+                                    activeOpacity={0.7}
+                                    onPress={() => handleQuickApplyCoupon(item.code)}
+                                    style={[
+                                      styles.couponCard,
+                                      {
+                                        backgroundColor: isDark ? "rgba(99, 102, 241, 0.08)" : "#f5f3ff",
+                                        borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#ddd6fe",
+                                      },
+                                    ]}
+                                  >
+                                    <View style={styles.couponCardLeft}>
+                                      <Text variant="xs" weight="bold" color={colors.primary}>
+                                        {item.code.toUpperCase()}
+                                      </Text>
+                                      <Text variant="xxs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                        Save {item.discount}%
+                                      </Text>
+                                    </View>
+                                    <View style={[styles.couponDottedLine, { borderColor: isDark ? "rgba(99, 102, 241, 0.2)" : "#c7d2fe" }]} />
+                                    <View style={styles.couponCardRight}>
+                                      <Text variant="xs" weight="bold" color={colors.primary}>
+                                        APPLY
+                                      </Text>
+                                    </View>
+                                  </TouchableOpacity>
+                                ))}
+
+                                {hasMoreCoupons && (
+                                  <TouchableOpacity
+                                    onPress={handleLoadMoreCoupons}
+                                    activeOpacity={0.7}
+                                    style={[
+                                      styles.couponCard,
+                                      {
+                                        backgroundColor: isDark ? "rgba(99, 102, 241, 0.15)" : "#e0e7ff",
+                                        borderColor: colors.primary,
+                                        borderWidth: 1,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                      },
+                                    ]}
+                                  >
+                                    {loadingCoupons ? (
+                                      <ActivityIndicator size="small" color={colors.primary} />
+                                    ) : (
+                                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                        <Ionicons
+                                          name="chevron-forward-circle"
+                                          size={12}
+                                          color={colors.primary}
+                                          style={{ marginRight: 6 }}
+                                        />
+                                        <Text variant="xs" weight="bold" color={colors.primary}>
+                                          Load More Offers ⚡
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
+                              </>
                             )}
-                          />
+                          </ScrollView>
                         </View>
                       )}
                     </>

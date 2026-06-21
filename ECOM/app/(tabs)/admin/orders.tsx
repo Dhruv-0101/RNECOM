@@ -21,12 +21,15 @@ import { Input } from "@/src/shared/ui/Input";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { PopulatedOrder } from "@/src/features/auth/types/auth.types";
+import { ORDER_PAGINATION } from "@/src/features/orders/config/pagination";
 
 export default function AdminOrders() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
   const [orders, setOrders] = useState<PopulatedOrder[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,11 +40,32 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState<PopulatedOrder | null>(null);
   const [orderStatusForm, setOrderStatusForm] = useState<"pending" | "processing" | "shipped" | "delivered">("pending");
 
-  const loadOrders = async () => {
+  const loadOrders = async (pageNum: number, searchVal: string, isAppend = false) => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/v1/orders?limit=1000");
-      setOrders(res.data?.orders || []);
+      const res = await apiClient.get("/api/v1/orders", {
+        params: {
+          page: pageNum,
+          limit: ORDER_PAGINATION.ADMIN_LIMIT,
+          search: searchVal || undefined,
+        },
+      });
+      const fetchedOrders = res.data?.orders || [];
+      if (isAppend) {
+        setOrders((prev) => {
+          const existingIds = new Set(prev.map((o) => o._id));
+          const uniqueNew = fetchedOrders.filter((o: any) => !existingIds.has(o._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setOrders(fetchedOrders);
+      }
+
+      if (fetchedOrders.length < ORDER_PAGINATION.ADMIN_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       console.log("Failed to load orders list:", err);
       Alert.alert("Error", "Could not fetch orders log from backend.");
@@ -51,13 +75,29 @@ export default function AdminOrders() {
   };
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadOrders(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadOrders();
+    setPage(1);
+    setHasMore(true);
+    await loadOrders(1, searchQuery, false);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadOrders(nextPage, searchQuery, true);
+    }
   };
 
   const toggleOrderExpand = (orderId: string) => {
@@ -80,7 +120,7 @@ export default function AdminOrders() {
       });
       Alert.alert("Success", "Order shipment status updated.");
       setIsModalVisible(false);
-      loadOrders();
+      loadOrders(1, searchQuery, false);
     } catch (err: any) {
       console.log("Order status update error:", err);
       Alert.alert("Failed", err.response?.data?.message || err.message);
@@ -96,15 +136,6 @@ export default function AdminOrders() {
     if (s === "shipped") return colors.primary;
     return colors.error;
   };
-
-  const filteredOrders = orders.filter((order) => {
-    const orderNum = (order.orderNumber || "").toLowerCase();
-    const orderId = (order._id || "").toLowerCase();
-    const buyerName = (order.user as any)?.fullname?.toLowerCase() || "";
-    const buyerEmail = (order.user as any)?.email?.toLowerCase() || "";
-    const query = searchQuery.toLowerCase().trim();
-    return orderNum.includes(query) || orderId.includes(query) || buyerName.includes(query) || buyerEmail.includes(query);
-  });
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -150,101 +181,114 @@ export default function AdminOrders() {
           </View>
         )}
 
-        {filteredOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching orders found." : "No orders registered on server yet."}
           </Text>
         ) : (
-          filteredOrders.map((order) => {
-            const isExpanded = expandedOrderId === order._id;
-            const buyer = order.user as any;
-            const statusCol = getStatusColor(order.status);
-            const payCol = getStatusColor(order.paymentStatus);
+          <>
+            {orders.map((order) => {
+              const isExpanded = expandedOrderId === order._id;
+              const buyer = order.user as any;
+              const statusCol = getStatusColor(order.status);
+              const payCol = getStatusColor(order.paymentStatus);
+              const shippingAddr = order.shippingAddress as any;
 
-            return (
-              <Card key={order._id} style={[styles.orderCard, { borderColor: colors.border }]}>
-                <TouchableOpacity
-                  style={styles.orderHeaderRow}
-                  onPress={() => toggleOrderExpand(order._id)}
-                  activeOpacity={0.9}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text variant="sm" weight="bold">
-                      Order #{order.orderNumber}
-                    </Text>
-                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                      Buyer: {buyer?.fullname || "Unknown"} ({buyer?.email || "N/A"})
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text variant="sm" weight="bold" color={colors.primary}>
-                      ${order.totalPrice.toFixed(2)}
-                    </Text>
-                    <Ionicons
-                      name={isExpanded ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color={colors.textMuted}
-                    />
-                  </View>
-                </TouchableOpacity>
-
-                {/* Quick status badges */}
-                <View style={styles.badgeRow}>
-                  <View style={[styles.badgeContainer, { backgroundColor: payCol + "15" }]}>
-                    <Text variant="xs" weight="semibold" color={payCol}>
-                      Payment: {order.paymentStatus}
-                    </Text>
-                  </View>
+              return (
+                <Card key={order._id} style={[styles.orderCard, { borderColor: colors.border }]}>
                   <TouchableOpacity
-                    style={[styles.badgeContainer, { backgroundColor: statusCol + "15" }]}
-                    onPress={() => openStatusModal(order)}
-                    activeOpacity={0.7}
+                    style={styles.orderHeaderRow}
+                    onPress={() => toggleOrderExpand(order._id)}
+                    activeOpacity={0.9}
                   >
-                    <Text variant="xs" weight="semibold" color={statusCol}>
-                      Shipment: {order.status} ✏️
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="sm" weight="bold">
+                        Order #{order.orderNumber}
+                      </Text>
+                      <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                        Buyer: {buyer?.fullname || "Unknown"} ({buyer?.email || "N/A"})
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text variant="sm" weight="bold" color={colors.primary}>
+                        ${order.totalPrice.toFixed(2)}
+                      </Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up" : "chevron-down"}
+                        size={18}
+                        color={colors.textMuted}
+                      />
+                    </View>
                   </TouchableOpacity>
-                </View>
 
-                {/* Expandable info details */}
-                {isExpanded && (
-                  <View style={styles.expandedOrderView}>
-                    <View style={[styles.hDivider, { backgroundColor: colors.border }]} />
-                    <Text variant="xs" weight="semibold" style={{ marginBottom: SPACING.xs }}>
-                      Purchased Items:
-                    </Text>
-                    {order.orderItems?.map((item, index) => (
-                      <View key={item._id || index} style={styles.orderItemRow}>
-                        <Text variant="xs" style={{ flex: 1 }}>
-                          {item.name} x {item.qty}
-                        </Text>
-                        <Text variant="xs" color={colors.textMuted}>
-                          ${(item.price * item.qty).toFixed(2)}
-                        </Text>
-                      </View>
-                    ))}
-
-                    <View style={[styles.hDivider, { backgroundColor: colors.border }]} />
-                    <Text variant="xs" weight="semibold" style={{ marginBottom: SPACING.xs }}>
-                      Shipping Address:
-                    </Text>
-                    <Text variant="xs" color={colors.textMuted}>
-                      {order.shippingAddress?.recipientFirstName || order.shippingAddress?.firstName} {order.shippingAddress?.recipientLastName || order.shippingAddress?.lastName}
-                    </Text>
-                    <Text variant="xs" color={colors.textMuted}>
-                      {order.shippingAddress?.streetAddress || order.shippingAddress?.address}, {order.shippingAddress?.city}
-                    </Text>
-                    <Text variant="xs" color={colors.textMuted}>
-                      {order.shippingAddress?.state || order.shippingAddress?.province}, {order.shippingAddress?.country}
-                    </Text>
-                    <Text variant="xs" color={colors.textMuted}>
-                      Phone: {order.shippingAddress?.recipientPhone || order.shippingAddress?.phone}
-                    </Text>
+                  {/* Quick status badges */}
+                  <View style={styles.badgeRow}>
+                    <View style={[styles.badgeContainer, { backgroundColor: payCol + "15" }]}>
+                      <Text variant="xs" weight="semibold" color={payCol}>
+                        Payment: {order.paymentStatus}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.badgeContainer, { backgroundColor: statusCol + "15" }]}
+                      onPress={() => openStatusModal(order)}
+                      activeOpacity={0.7}
+                    >
+                      <Text variant="xs" weight="semibold" color={statusCol}>
+                        Shipment: {order.status} ✏️
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-              </Card>
-            );
-          })
+
+                  {/* Expandable info details */}
+                  {isExpanded && (
+                    <View style={styles.expandedOrderView}>
+                      <View style={[styles.hDivider, { backgroundColor: colors.border }]} />
+                      <Text variant="xs" weight="semibold" style={{ marginBottom: SPACING.xs }}>
+                        Purchased Items:
+                      </Text>
+                      {order.orderItems?.map((item, index) => (
+                        <View key={`${item._id || ""}-${index}`} style={styles.orderItemRow}>
+                          <Text variant="xs" style={{ flex: 1 }}>
+                            {item.name} x {item.qty}
+                          </Text>
+                          <Text variant="xs" color={colors.textMuted}>
+                            ${(item.price * item.qty).toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+
+                      <View style={[styles.hDivider, { backgroundColor: colors.border }]} />
+                      <Text variant="xs" weight="semibold" style={{ marginBottom: SPACING.xs }}>
+                        Shipping Address:
+                      </Text>
+                      <Text variant="xs" color={colors.textMuted}>
+                        {shippingAddr?.recipientFirstName || shippingAddr?.firstName} {shippingAddr?.recipientLastName || shippingAddr?.lastName}
+                      </Text>
+                      <Text variant="xs" color={colors.textMuted}>
+                        {shippingAddr?.streetAddress || shippingAddr?.address}, {shippingAddr?.city}
+                      </Text>
+                      <Text variant="xs" color={colors.textMuted}>
+                        {shippingAddr?.state || shippingAddr?.province}, {shippingAddr?.country}
+                      </Text>
+                      <Text variant="xs" color={colors.textMuted}>
+                        Phone: {shippingAddr?.recipientPhone || shippingAddr?.phone}
+                      </Text>
+                    </View>
+                  )}
+                </Card>
+              );
+            })}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
 

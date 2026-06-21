@@ -20,6 +20,9 @@ import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { Coupon } from "@/src/features/coupons/types/coupon.types";
+import { AdminCouponSkeleton } from "@/src/shared/ui/Skeleton";
+import { COUPON_PAGINATION } from "@/src/features/coupons/config/pagination";
+
 
 export default function AdminCoupons() {
   const { colors } = useTheme();
@@ -225,24 +228,31 @@ export default function AdminCoupons() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && coupons.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {filteredCoupons.length === 0 ? (
-          <Text
-            variant="sm"
-            color={colors.textMuted}
-            align="center"
-            style={{ marginTop: SPACING.xxl }}
-          >
-            {searchQuery
-              ? "No matching coupons found."
-              : "No active coupons on server."}
-          </Text>
+        {loading && !refreshing && coupons.length === 0 ? (
+          Array.from({ length: COUPON_PAGINATION.HEADER_LIMIT }).map((_, i) => (
+            <AdminCouponSkeleton key={`admin-coupon-skeleton-${i}`} />
+          ))
+        ) : filteredCoupons.length === 0 ? (
+          !loading && (
+            <Text
+              variant="sm"
+              color={colors.textMuted}
+              align="center"
+              style={{ marginTop: SPACING.xxl }}
+            >
+              {searchQuery
+                ? "No matching coupons found."
+                : "No active coupons on server."}
+            </Text>
+          )
         ) : (
+
           filteredCoupons.map((cop) => {
             const startD = new Date(cop.startDate).toLocaleDateString();
             const endD = new Date(cop.endDate).toLocaleDateString();

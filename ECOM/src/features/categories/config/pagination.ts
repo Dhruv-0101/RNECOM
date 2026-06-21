@@ -1,0 +1,4 @@
+export const CATEGORY_PAGINATION = {
+  HOME_SLIDER_LIMIT: 5,
+  SIDEBAR_LIMIT: 10,
+} as const;

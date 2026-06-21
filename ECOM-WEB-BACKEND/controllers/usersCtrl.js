@@ -59,8 +59,8 @@ export const loginUserCtrl = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/users/profile
 // @access  Private
 export const getUserProfileCtrl = asyncHandler(async (req, res) => {
-  //find the user
-  const user = await User.findById(req.userAuthId).populate("orders");
+  //find the user (removed populate("orders") for pagination performance)
+  const user = await User.findById(req.userAuthId);
   res.json({
     status: "success",
     message: "User profile fetched successfully",
@@ -107,5 +107,74 @@ export const updateShippingAddresctrl = asyncHandler(async (req, res) => {
     status: "success",
     message: "User shipping address updated successfully",
     user,
+  });
+});
+
+// @desc    Get all users (Admin only)
+// @route   GET /api/v1/users
+// @access  Private/Admin
+export const getAllUsersCtrl = asyncHandler(async (req, res) => {
+  // pagination
+  const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
+  const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+
+  const query = { isAdmin: false };
+  if (req.query.search) {
+    query.$or = [
+      { fullname: { $regex: req.query.search, $options: "i" } },
+      { email: { $regex: req.query.search, $options: "i" } },
+    ];
+  }
+
+  const total = await User.countDocuments(query);
+
+  const users = await User.find(query)
+    .populate("orders")
+    .skip(startIndex)
+    .limit(limit);
+
+  const formattedUsers = users.map((user) => {
+    const totalOrders = user.orders ? user.orders.length : 0;
+    const totalSpent = user.orders
+      ? user.orders.reduce(
+          (sum, order) => (order.paymentStatus === "Paid" ? sum + order.totalPrice : sum),
+          0
+        )
+      : 0;
+
+    return {
+      _id: user._id,
+      fullname: user.fullname,
+      email: user.email,
+      shippingAddress: user.shippingAddress,
+      totalOrders,
+      totalSpent,
+      createdAt: user.createdAt,
+    };
+  });
+
+  const pagination = {};
+  if (endIndex < total) {
+    pagination.next = {
+      page: page + 1,
+      limit,
+    };
+  }
+  if (startIndex > 0) {
+    pagination.prev = {
+      page: page - 1,
+      limit,
+    };
+  }
+
+  res.json({
+    status: "success",
+    total,
+    results: formattedUsers.length,
+    pagination,
+    message: "Users fetched successfully",
+    users: formattedUsers,
   });
 });

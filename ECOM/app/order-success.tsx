@@ -119,7 +119,7 @@ export default function OrderSuccessScreen() {
               {order.orderItems?.map((item: any, idx: number) => {
                 const itemImg = item.image ? { uri: item.image } : fallbackImage;
                 return (
-                  <View key={item._id || idx} style={styles.itemRow}>
+                  <View key={`${item._id || ""}-${idx}`} style={styles.itemRow}>
                     <Image
                       source={itemImg}
                       style={styles.itemImage}

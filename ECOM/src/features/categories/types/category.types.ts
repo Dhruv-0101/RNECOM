@@ -11,4 +11,6 @@ export interface CategoriesResponse {
   status: string;
   message: string;
   categories: Category[];
+  total?: number;
+  results?: number;
 }

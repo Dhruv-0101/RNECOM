@@ -1,0 +1,4 @@
+export const PRODUCT_PAGINATION = {
+  HOME_TRENDING_LIMIT: 6,
+  CATEGORY_LIMIT: 4,
+} as const;

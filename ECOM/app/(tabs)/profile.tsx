@@ -30,6 +30,9 @@ import { authApi } from "@/src/features/auth/api/authApi";
 import { updateUser } from "@/src/features/auth/store/authSlice";
 import { PopulatedOrder } from "@/src/features/auth/types/auth.types";
 import { AppDispatch } from "@/src/store/store";
+import { ORDER_PAGINATION } from "@/src/features/orders/config/pagination";
+import { Skeleton, OrderSkeletonCard } from "@/src/shared/ui/Skeleton";
+import { apiClient } from "@/src/services/api/apiClient";
 
 // Enable LayoutAnimation for Android
 if (
@@ -52,6 +55,12 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<"orders" | "address">("orders");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Pagination states for customer orders
+  const [orders, setOrders] = useState<PopulatedOrder[]>([]);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Address editing states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -84,12 +93,67 @@ export default function Profile() {
     }
   }, [user]);
 
+  // Fetch paginated customer orders
+  const loadUserOrders = async (pageNum: number, isAppend = false) => {
+    if (!isAuthenticated) return;
+    setLoadingOrders(true);
+    try {
+      const res = await apiClient.get("/api/v1/orders", {
+        params: {
+          page: pageNum,
+          limit: ORDER_PAGINATION.CUSTOMER_LIMIT,
+        },
+      });
+      const fetchedOrders = res.data?.orders || [];
+      if (isAppend) {
+        setOrders((prev) => {
+          const existingIds = new Set(prev.map((o) => o._id));
+          const uniqueNew = fetchedOrders.filter((o: any) => !existingIds.has(o._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setOrders(fetchedOrders);
+      }
+
+      if (fetchedOrders.length < ORDER_PAGINATION.CUSTOMER_LIMIT) {
+        setHasMoreOrders(false);
+      } else {
+        setHasMoreOrders(true);
+      }
+    } catch (err) {
+      console.log("Failed to load user orders:", err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const handleLoadMoreOrders = async () => {
+    if (!loadingOrders && hasMoreOrders) {
+      const nextPage = ordersPage + 1;
+      setOrdersPage(nextPage);
+      await loadUserOrders(nextPage, true);
+    }
+  };
+
+  // Load customer orders initially and on login state change
+  useEffect(() => {
+    if (isAuthenticated) {
+      setOrdersPage(1);
+      setHasMoreOrders(true);
+      loadUserOrders(1, false);
+    } else {
+      setOrders([]);
+    }
+  }, [isAuthenticated]);
+
   // Pull-to-refresh
   const handleRefresh = async () => {
     if (!isAuthenticated) return;
     setRefreshing(true);
     try {
       await refetch();
+      setOrdersPage(1);
+      await loadUserOrders(1, false);
     } catch (err) {
       console.log("Error refreshing profile:", err);
     } finally {
@@ -336,16 +400,39 @@ export default function Profile() {
 
         {/* 3. Tab contents block */}
         {isProfileLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.md }}>
-              Loading your profile details...
-            </Text>
+          <View style={{ padding: SPACING.xs }}>
+            {/* Header Profile card skeleton */}
+            <Card style={[styles.headerCard, { borderColor: colors.border, padding: SPACING.md, marginBottom: SPACING.md }]}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Skeleton width={50} height={50} borderRadius={25} style={{ marginRight: SPACING.md }} />
+                <View style={{ flex: 1 }}>
+                  <Skeleton width={120} height={16} style={{ marginBottom: 8 }} />
+                  <Skeleton width={160} height={10} />
+                </View>
+              </View>
+            </Card>
+
+            {/* Profile Tab select bar skeleton */}
+            <View style={{ flexDirection: "row", marginBottom: SPACING.md, gap: SPACING.md, paddingHorizontal: SPACING.sm }}>
+              <Skeleton width="48%" height={36} borderRadius={18} />
+              <Skeleton width="48%" height={36} borderRadius={18} />
+            </View>
+
+            {/* Orders list skeletons */}
+            {Array.from({ length: ORDER_PAGINATION.CUSTOMER_LIMIT }).map((_, i) => (
+              <OrderSkeletonCard key={`profile-initial-skeleton-${i}`} />
+            ))}
           </View>
         ) : activeTab === "orders" ? (
           // ORDERS LIST
           <View>
-            {!user.orders || user.orders.length === 0 ? (
+            {loadingOrders && orders.length === 0 ? (
+              <View>
+                {Array.from({ length: ORDER_PAGINATION.CUSTOMER_LIMIT }).map((_, i) => (
+                  <OrderSkeletonCard key={`orders-initial-skeleton-${i}`} />
+                ))}
+              </View>
+            ) : orders.length === 0 ? (
               <Card style={[styles.emptyCard, { borderColor: colors.border }]}>
                 <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#f8fafc" }]}>
                   <Ionicons name="receipt-outline" size={44} color={colors.textMuted} />
@@ -364,122 +451,141 @@ export default function Profile() {
                 />
               </Card>
             ) : (
-              (user.orders as PopulatedOrder[])
-                .filter((order) => order && typeof order === "object" && order._id)
-                .map((order) => {
-                  const isExpanded = expandedOrderId === order._id;
-                  const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  }) : "N/A";
-                  const paymentColors = getStatusColors(order.paymentStatus);
-                  const shippingColors = getStatusColors(order.status);
+              <>
+                {orders
+                  .filter((order) => order && typeof order === "object" && order._id)
+                  .map((order) => {
+                    const isExpanded = expandedOrderId === order._id;
+                    const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    }) : "N/A";
+                    const paymentColors = getStatusColors(order.paymentStatus);
+                    const shippingColors = getStatusColors(order.status);
 
-                  return (
-                    <Card key={order._id} style={[styles.orderCard, { borderColor: colors.border }]}>
-                      <TouchableOpacity
-                        onPress={() => toggleOrderExpand(order._id)}
-                        activeOpacity={0.9}
-                        style={styles.orderHeader}
-                      >
-                        <View style={styles.orderHeaderLeft}>
-                          <Text variant="md" weight="bold">
-                            #{order.orderNumber}
-                          </Text>
-                          <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                            Placed {dateStr}
-                          </Text>
-                        </View>
-                        <View style={styles.orderHeaderRight}>
-                          <Text variant="md" weight="bold" color={colors.primary}>
-                            ${order.totalPrice.toFixed(2)}
-                          </Text>
-                          <Ionicons
-                            name={isExpanded ? "chevron-up" : "chevron-down"}
-                            size={18}
-                            color={colors.textMuted}
-                            style={{ marginLeft: SPACING.xs }}
-                          />
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* Status Badges Row */}
-                      <View style={styles.badgesRow}>
-                        <View style={[styles.statusBadge, { backgroundColor: paymentColors.bg }]}>
-                          <Text variant="xs" weight="bold" color={paymentColors.text}>
-                            Payment: {order.paymentStatus?.toUpperCase() || "PENDING"}
-                          </Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: shippingColors.bg }]}>
-                          <Text variant="xs" weight="bold" color={shippingColors.text}>
-                            Status: {order.status?.toUpperCase() || "PROCESSING"}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Collapsible expanded details */}
-                      {isExpanded && (
-                        <View style={styles.expandedContent}>
-                          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                          
-                          <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
-                            ITEMS PURCHASED
-                          </Text>
-                          {order.orderItems?.map((item, index) => (
-                            <View key={item._id || index} style={styles.itemRow}>
-                              <View style={styles.itemLeft}>
-                                <Text variant="sm" weight="semibold">
-                                  {item.name}
-                                </Text>
-                                {item.description ? (
-                                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 1 }}>
-                                    {item.description}
-                                  </Text>
-                                ) : null}
-                                <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                                  {item.qty} x ${item.price.toFixed(2)}
-                                </Text>
-                              </View>
-                              <Text variant="sm" weight="bold">
-                                ${(item.qty * item.price).toFixed(2)}
-                              </Text>
-                            </View>
-                          ))}
-
-                          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-                          <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
-                            DELIVERY ADDRESS
-                          </Text>
-                          <View style={[styles.addressDetails, { backgroundColor: colors.inputBg }]}>
-                            <Text variant="sm" weight="semibold">
-                              {order.shippingAddress?.recipientFirstName || order.shippingAddress?.firstName} {order.shippingAddress?.recipientLastName || order.shippingAddress?.lastName}
-                            </Text>
-                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 4 }}>
-                              {order.shippingAddress?.streetAddress || order.shippingAddress?.address}
+                    return (
+                      <Card key={order._id} style={[styles.orderCard, { borderColor: colors.border }]}>
+                        <TouchableOpacity
+                          onPress={() => toggleOrderExpand(order._id)}
+                          activeOpacity={0.9}
+                          style={styles.orderHeader}
+                        >
+                          <View style={styles.orderHeaderLeft}>
+                            <Text variant="md" weight="bold">
+                              #{order.orderNumber}
                             </Text>
                             <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                              {order.shippingAddress?.city}, {order.shippingAddress?.state || order.shippingAddress?.province} {order.shippingAddress?.postalCode}
+                              Placed {dateStr}
                             </Text>
-                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                              {order.shippingAddress?.country}
+                          </View>
+                          <View style={styles.orderHeaderRight}>
+                            <Text variant="md" weight="bold" color={colors.primary}>
+                              ${order.totalPrice.toFixed(2)}
                             </Text>
-                            <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
-                              📞 {order.shippingAddress?.recipientPhone || order.shippingAddress?.phone}
+                            <Ionicons
+                              name={isExpanded ? "chevron-up" : "chevron-down"}
+                              size={18}
+                              color={colors.textMuted}
+                              style={{ marginLeft: SPACING.xs }}
+                            />
+                          </View>
+                        </TouchableOpacity>
+
+                        {/* Status Badges Row */}
+                        <View style={styles.badgesRow}>
+                          <View style={[styles.statusBadge, { backgroundColor: paymentColors.bg }]}>
+                            <Text variant="xs" weight="bold" color={paymentColors.text}>
+                              Payment: {order.paymentStatus?.toUpperCase() || "PENDING"}
+                            </Text>
+                          </View>
+                          <View style={[styles.statusBadge, { backgroundColor: shippingColors.bg }]}>
+                            <Text variant="xs" weight="bold" color={shippingColors.text}>
+                              Status: {order.status?.toUpperCase() || "PROCESSING"}
                             </Text>
                           </View>
                         </View>
-                      )}
-                    </Card>
-                  );
-                })
+
+                        {/* Collapsible expanded details */}
+                        {isExpanded && (
+                          <View style={styles.expandedContent}>
+                            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                            
+                            <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
+                              ITEMS PURCHASED
+                            </Text>
+                            {order.orderItems?.map((item, index) => (
+                              <View key={`${item._id || ""}-${index}`} style={styles.itemRow}>
+                                <View style={styles.itemLeft}>
+                                  <Text variant="sm" weight="semibold">
+                                    {item.name}
+                                  </Text>
+                                  {item.description ? (
+                                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 1 }}>
+                                      {item.description}
+                                    </Text>
+                                  ) : null}
+                                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                    {item.qty} x ${item.price.toFixed(2)}
+                                  </Text>
+                                </View>
+                                <Text variant="sm" weight="bold">
+                                  ${(item.qty * item.price).toFixed(2)}
+                                </Text>
+                              </View>
+                            ))}
+
+                            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                            <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
+                              DELIVERY ADDRESS
+                            </Text>
+                            <View style={[styles.addressDetails, { backgroundColor: colors.inputBg }]}>
+                              <Text variant="sm" weight="semibold">
+                                {order.shippingAddress?.recipientFirstName || order.shippingAddress?.firstName} {order.shippingAddress?.recipientLastName || order.shippingAddress?.lastName}
+                              </Text>
+                              <Text variant="xs" color={colors.textMuted} style={{ marginTop: 4 }}>
+                                {order.shippingAddress?.streetAddress || order.shippingAddress?.address}
+                              </Text>
+                              <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                {order.shippingAddress?.city}, {order.shippingAddress?.state || order.shippingAddress?.province} {order.shippingAddress?.postalCode}
+                              </Text>
+                              <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                                {order.shippingAddress?.country}
+                              </Text>
+                              <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
+                                📞 {order.shippingAddress?.recipientPhone || order.shippingAddress?.phone}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </Card>
+                    );
+                  })}
+                {hasMoreOrders && (
+                  <Button
+                    title="Load More Orders"
+                    onPress={handleLoadMoreOrders}
+                    loading={false}
+                    disabled={loadingOrders}
+                    variant="outline"
+                    style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+                  />
+                )}
+                {loadingOrders && orders.length > 0 && (
+                  <View style={{ marginTop: SPACING.md }}>
+                    {Array.from({ length: ORDER_PAGINATION.CUSTOMER_LOAD_MORE_LIMIT }).map((_, i) => (
+                      <OrderSkeletonCard key={`orders-load-more-skeleton-${i}`} />
+                    ))}
+                  </View>
+                )}
+              </>
             )}
           </View>
         ) : (
           // ADDRESS BOOK
           <View>
-            {!isEditingAddress && user.hasShippingAddress ? (
+            {!isEditingAddress && user?.hasShippingAddress ? (
               <Card style={[styles.addressCard, { borderColor: colors.border }]}>
                 <View style={styles.addressCardHeader}>
                   <View style={[styles.addressIconWrapper, { backgroundColor: isDark ? "rgba(99, 102, 241, 0.15)" : "#e0e7ff" }]}>
@@ -492,19 +598,19 @@ export default function Profile() {
 
                 <View style={[styles.addressViewContent, { backgroundColor: colors.inputBg }]}>
                   <Text variant="md" weight="semibold">
-                    {user.shippingAddress?.firstName} {user.shippingAddress?.lastName}
+                    {user?.shippingAddress?.firstName} {user?.shippingAddress?.lastName}
                   </Text>
                   <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.xs }}>
-                    {user.shippingAddress?.address}
+                    {user?.shippingAddress?.address}
                   </Text>
                   <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    {user.shippingAddress?.city}, {user.shippingAddress?.province} {user.shippingAddress?.postalCode}
+                    {user?.shippingAddress?.city}, {user?.shippingAddress?.province} {user?.shippingAddress?.postalCode}
                   </Text>
                   <Text variant="sm" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    {user.shippingAddress?.country}
+                    {user?.shippingAddress?.country}
                   </Text>
                   <Text variant="sm" color={colors.textMuted} style={{ marginTop: SPACING.sm }}>
-                    📞 {user.shippingAddress?.phone}
+                    📞 {user?.shippingAddress?.phone}
                   </Text>
                 </View>
 
@@ -519,7 +625,7 @@ export default function Profile() {
             ) : (
               <Card style={[styles.formCard, { borderColor: colors.border }]}>
                 <Text variant="md" weight="bold" style={{ marginBottom: SPACING.md }}>
-                  {user.hasShippingAddress ? "Modify Shipping Details" : "Setup Shipping Location"}
+                  {user?.hasShippingAddress ? "Modify Shipping Details" : "Setup Shipping Location"}
                 </Text>
                 
                 <View style={styles.formRow}>
@@ -605,7 +711,7 @@ export default function Profile() {
                     icon="checkmark-outline"
                     style={{ height: 44, borderRadius: 22 }}
                   />
-                  {user.hasShippingAddress && (
+                  {user?.hasShippingAddress && (
                     <Button
                       title="Cancel"
                       onPress={() => {

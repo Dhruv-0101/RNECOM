@@ -15,54 +15,79 @@ import { useTheme } from "@/src/shared/providers/ThemeProvider";
 import { Text } from "@/src/shared/ui/Text";
 import { Card } from "@/src/shared/ui/Card";
 import { Input } from "@/src/shared/ui/Input";
+import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
-import { apiClient } from "@/src/services/api/apiClient";
+import { CUSTOMER_PAGINATION } from "@/src/features/customers/config/pagination";
+import { customersApi, Customer } from "@/src/features/customers/api/customersApi";
 
 export default function AdminCustomers() {
   const { colors } = useTheme();
   const router = useRouter();
 
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadCustomers = async () => {
+  const loadCustomers = async (pageNum: number, searchVal: string, isAppend = false) => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/v1/orders?limit=1000");
-      const ordersList = res.data?.orders || [];
-      // Extract unique buyers based on email
-      const customerUsers = ordersList.map((order: any) => order.user).filter(Boolean);
-      const uniqueCustomers = Array.from(
-        new Map(customerUsers.map((cust: any) => [cust.email, cust])).values()
-      ) as any[];
+      const res = await customersApi.getCustomers({
+        page: pageNum,
+        limit: CUSTOMER_PAGINATION.ADMIN_LIMIT,
+        search: searchVal || undefined,
+      });
+      const fetchedCustomers = res.users || [];
+      if (isAppend) {
+        setCustomers((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetchedCustomers.filter((c: any) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setCustomers(fetchedCustomers);
+      }
 
-      setCustomers(uniqueCustomers);
+      if (fetchedCustomers.length < CUSTOMER_PAGINATION.ADMIN_LIMIT) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       console.log("Failed to load customers list:", err);
-      Alert.alert("Error", "Could not fetch customers list from orders log.");
+      Alert.alert("Error", "Could not fetch customers list from backend.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      setHasMore(true);
+      loadCustomers(1, searchQuery, false);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadCustomers();
+    setPage(1);
+    setHasMore(true);
+    await loadCustomers(1, searchQuery, false);
     setRefreshing(false);
   };
 
-  const filteredCustomers = customers.filter((cust) => {
-    const name = (cust.fullname || "").toLowerCase();
-    const email = (cust.email || "").toLowerCase();
-    const query = searchQuery.toLowerCase().trim();
-    return name.includes(query) || email.includes(query);
-  });
+  const handleLoadMore = async () => {
+    if (!loading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      await loadCustomers(nextPage, searchQuery, true);
+    }
+  };
 
   return (
     <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
@@ -108,48 +133,72 @@ export default function AdminCustomers() {
           </View>
         )}
 
-        {filteredCustomers.length === 0 ? (
+        {customers.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching customers found." : "No customer transactions recorded in system yet."}
           </Text>
         ) : (
-          filteredCustomers.map((cust, index) => (
-            <Card key={cust._id || index} style={[styles.customerCard, { borderColor: colors.border }]}>
-              <View style={styles.customerAvatarRow}>
-                <View style={[styles.avatarCircle, { backgroundColor: colors.primaryLight }]}>
-                  <Text variant="sm" weight="bold" color={colors.primary}>
-                    {cust.fullname ? cust.fullname[0].toUpperCase() : "C"}
-                  </Text>
+          <>
+            {customers.map((cust, index) => (
+              <Card key={cust._id || index} style={[styles.customerCard, { borderColor: colors.border }]}>
+                <View style={styles.customerAvatarRow}>
+                  <View style={[styles.avatarCircle, { backgroundColor: colors.primaryLight }]}>
+                    <Text variant="sm" weight="bold" color={colors.primary}>
+                      {cust.fullname ? cust.fullname[0].toUpperCase() : "C"}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text variant="sm" weight="bold">
+                      {cust.fullname}
+                    </Text>
+                    <Text variant="xs" color={colors.textMuted}>
+                      {cust.email}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text variant="sm" weight="bold">
-                    {cust.fullname}
-                  </Text>
-                  <Text variant="xs" color={colors.textMuted}>
-                    {cust.email}
-                  </Text>
-                </View>
-              </View>
 
-              {cust.shippingAddress ? (
-                <View style={[styles.custAddressContainer, { backgroundColor: colors.inputBg }]}>
-                  <Text variant="xs" color={colors.textMuted}>
-                    Address: {cust.shippingAddress.address || cust.shippingAddress.streetAddress}, {cust.shippingAddress.city}
+                {cust.shippingAddress ? (
+                  <View style={[styles.custAddressContainer, { backgroundColor: colors.inputBg }]}>
+                    <Text variant="xs" color={colors.textMuted}>
+                      Address: {cust.shippingAddress.address || (cust.shippingAddress as any).streetAddress}, {cust.shippingAddress.city}
+                    </Text>
+                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                      Region: {cust.shippingAddress.province || (cust.shippingAddress as any).state}, {cust.shippingAddress.country}
+                    </Text>
+                    <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
+                      Phone: {cust.shippingAddress.phone || (cust.shippingAddress as any).recipientPhone}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 8 }}>
+                    No shipping address saved.
                   </Text>
-                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    Region: {cust.shippingAddress.province || cust.shippingAddress.state}, {cust.shippingAddress.country}
-                  </Text>
-                  <Text variant="xs" color={colors.textMuted} style={{ marginTop: 2 }}>
-                    Phone: {cust.shippingAddress.phone || cust.shippingAddress.recipientPhone}
-                  </Text>
+                )}
+
+                {/* Customer Orders & Spent Stats */}
+                <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
+                  <View style={styles.statBlock}>
+                    <Text variant="xxs" color={colors.textMuted}>Orders Placed</Text>
+                    <Text variant="sm" weight="bold">{cust.totalOrders || 0}</Text>
+                  </View>
+                  <View style={styles.statBlock}>
+                    <Text variant="xxs" color={colors.textMuted}>Total Amount Spent</Text>
+                    <Text variant="sm" weight="bold" color={colors.primary}>${(cust.totalSpent || 0).toFixed(2)}</Text>
+                  </View>
                 </View>
-              ) : (
-                <Text variant="xs" color={colors.textMuted} style={{ marginTop: 8 }}>
-                  No shipping address saved.
-                </Text>
-              )}
-            </Card>
-          ))
+              </Card>
+            ))}
+            {hasMore && (
+              <Button
+                title="Load More"
+                onPress={handleLoadMore}
+                loading={loading}
+                disabled={loading}
+                variant="outline"
+                style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
+              />
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -209,5 +258,15 @@ const styles = StyleSheet.create({
   },
   searchInputContainer: {
     marginBottom: SPACING.md,
+  },
+  statsRow: {
+    flexDirection: "row",
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: SPACING.lg,
+  },
+  statBlock: {
+    flexDirection: "column",
   },
 });

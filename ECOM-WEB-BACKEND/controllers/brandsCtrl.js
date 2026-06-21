@@ -35,9 +35,15 @@ export const getAllBrandsCtrl = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
   const endIndex = page * limit;
-  const total = await Brand.countDocuments();
 
-  const brands = await Brand.find()
+  const query = {};
+  if (req.query.name) {
+    query.name = { $regex: req.query.name, $options: "i" };
+  }
+
+  const total = await Brand.countDocuments(query);
+
+  const brands = await Brand.find(query)
     .skip(startIndex)
     .limit(limit);
 

@@ -35,8 +35,6 @@ export default function Cart() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top Header spacer */}
-      <View style={{ height: insets.top, backgroundColor: colors.surface }} />
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Text variant="xxl" weight="bold">
           Cart
@@ -153,7 +151,7 @@ export default function Cart() {
             {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              paddingBottom: Math.max(insets.bottom, SPACING.md),
+              paddingBottom: SPACING.md,
             },
           ]}
         >
@@ -293,6 +291,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
     elevation: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
@@ -308,12 +307,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   checkoutBtn: {
+    flex: 1,
+    marginLeft: SPACING.lg,
     height: 48,
     borderRadius: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },

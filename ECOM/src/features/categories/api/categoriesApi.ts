@@ -6,8 +6,8 @@ export const categoriesApi = {
   /**
    * Fetch all categories from the backend.
    */
-  async getCategories(): Promise<CategoriesResponse> {
-    const response = await apiClient.get<CategoriesResponse>(ENDPOINTS.CATEGORIES.LIST);
+  async getCategories(params?: { page?: number; limit?: number; name?: string }): Promise<CategoriesResponse> {
+    const response = await apiClient.get<CategoriesResponse>(ENDPOINTS.CATEGORIES.LIST, { params });
     return response.data;
   },
 };
