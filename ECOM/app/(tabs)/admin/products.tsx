@@ -289,19 +289,51 @@ export default function AdminProducts() {
   };
 
   const pickProductImages = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission Required", "Please allow access to your photo library to upload images.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      setProductImageUris((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
-    }
+    Alert.alert(
+      "Select Image Source",
+      "Would you like to take a photo or select from your gallery?",
+      [
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert("Permission Required", "Please allow access to your camera to take a photo.");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0) {
+              setProductImageUris((prev) => [...prev, result.assets[0].uri]);
+            }
+          },
+        },
+        {
+          text: "Choose from Gallery",
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert("Permission Required", "Please allow access to your photo library to upload images.");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsMultipleSelection: true,
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0) {
+              setProductImageUris((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+            }
+          },
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
   };
 
   const handleSaveProduct = async () => {

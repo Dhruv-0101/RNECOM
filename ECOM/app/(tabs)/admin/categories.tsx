@@ -37,18 +37,24 @@ export default function AdminCategories() {
 
   // Modal / Form states
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [modalType, setModalType] = useState<"addCategory" | "editCategory" | null>(null);
+  const [modalType, setModalType] = useState<
+    "addCategory" | "editCategory" | null
+  >(null);
   const [singleNameInput, setSingleNameInput] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [categoryImageUri, setCategoryImageUri] = useState<string | null>(null);
 
-  const loadCategories = async (pageNum: number, searchVal: string, isAppend = false) => {
+  const loadCategories = async (
+    pageNum: number,
+    searchVal: string,
+    isAppend = false,
+  ) => {
     setLoading(true);
     try {
       const res = await apiClient.get("/api/v1/categories", {
         params: {
           page: pageNum,
-          limit: CATEGORY_PAGINATION.ADMIN_LIMIT,
+          limit: CATEGORY_PAGINATION.ALL_CATEGOTY_ADMIN,
           name: searchVal || undefined,
         },
       });
@@ -56,14 +62,16 @@ export default function AdminCategories() {
       if (isAppend) {
         setCategories((prev) => {
           const existingIds = new Set(prev.map((c) => c._id));
-          const uniqueNew = fetchedCategories.filter((c: any) => !existingIds.has(c._id));
+          const uniqueNew = fetchedCategories.filter(
+            (c: any) => !existingIds.has(c._id),
+          );
           return [...prev, ...uniqueNew];
         });
       } else {
         setCategories(fetchedCategories);
       }
 
-      if (fetchedCategories.length < CATEGORY_PAGINATION.ADMIN_LIMIT) {
+      if (fetchedCategories.length < CATEGORY_PAGINATION.ALL_CATEGOTY_ADMIN) {
         setHasMore(false);
       } else {
         setHasMore(true);
@@ -125,20 +133,62 @@ export default function AdminCategories() {
   };
 
   const pickCategoryImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission Required", "Please allow access to your photo library to upload images.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      setCategoryImageUri(result.assets[0].uri);
-    }
+    Alert.alert(
+      "Select Image Source",
+      "Would you like to take a photo or select from your gallery?",
+      [
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert(
+                "Permission Required",
+                "Please allow access to your camera to take a photo.",
+              );
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0) {
+              setCategoryImageUri(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: "Choose from Gallery",
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert(
+                "Permission Required",
+                "Please allow access to your photo library to upload images.",
+              );
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0) {
+              setCategoryImageUri(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ],
+    );
   };
 
   const handleSaveCategory = async () => {
@@ -155,7 +205,8 @@ export default function AdminCategories() {
         const formData = new FormData();
         formData.append("name", name);
         if (categoryImageUri) {
-          const filename = categoryImageUri.split("/").pop() || "category_image.jpg";
+          const filename =
+            categoryImageUri.split("/").pop() || "category_image.jpg";
           const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
           const mimeType = ext === "png" ? "image/png" : "image/jpeg";
           formData.append("file", {
@@ -171,7 +222,8 @@ export default function AdminCategories() {
         if (categoryImageUri && !categoryImageUri.startsWith("http")) {
           const formData = new FormData();
           formData.append("name", name);
-          const filename = categoryImageUri.split("/").pop() || "category_image.jpg";
+          const filename =
+            categoryImageUri.split("/").pop() || "category_image.jpg";
           const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
           formData.append("file", {
             uri: categoryImageUri,
@@ -210,7 +262,10 @@ export default function AdminCategories() {
             Alert.alert("Success", "Category deleted.");
             loadCategories(1, searchQuery, false);
           } catch (err: any) {
-            Alert.alert("Delete Failed", err.response?.data?.message || err.message);
+            Alert.alert(
+              "Delete Failed",
+              err.response?.data?.message || err.message,
+            );
           } finally {
             setLoading(false);
           }
@@ -222,9 +277,16 @@ export default function AdminCategories() {
   // Server filtered categories list
 
   return (
-    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+    <View
+      style={[styles.mainContainer, { backgroundColor: colors.background }]}
+    >
       {/* Header bar */}
-      <View style={[styles.viewHeader, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
+      <View
+        style={[
+          styles.viewHeader,
+          { borderBottomColor: colors.border, backgroundColor: colors.surface },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.back()}
@@ -236,7 +298,10 @@ export default function AdminCategories() {
           Manage Categories
         </Text>
         <TouchableOpacity
-          style={[styles.addFloatingBtn, { backgroundColor: colors.primaryLight }]}
+          style={[
+            styles.addFloatingBtn,
+            { backgroundColor: colors.primaryLight },
+          ]}
           onPress={openAddModal}
           activeOpacity={0.7}
         >
@@ -245,7 +310,12 @@ export default function AdminCategories() {
       </View>
 
       {/* Search Input Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
+      >
         <Input
           placeholder="Search categories by name..."
           value={searchQuery}
@@ -273,13 +343,26 @@ export default function AdminCategories() {
         )}
 
         {categories.length === 0 ? (
-          <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
-            {searchQuery ? "No matching categories found." : "No categories saved."}
+          <Text
+            variant="sm"
+            color={colors.textMuted}
+            align="center"
+            style={{ marginTop: SPACING.xxl }}
+          >
+            {searchQuery
+              ? "No matching categories found."
+              : "No categories saved."}
           </Text>
         ) : (
           <>
             {categories.map((cat) => (
-              <Card key={cat._id} style={[styles.listCard, { alignItems: "center", borderColor: colors.border }]}>
+              <Card
+                key={cat._id}
+                style={[
+                  styles.listCard,
+                  { alignItems: "center", borderColor: colors.border },
+                ]}
+              >
                 {/* Category thumbnail */}
                 {(cat as any).image ? (
                   <Image
@@ -288,11 +371,24 @@ export default function AdminCategories() {
                     resizeMode="cover"
                   />
                 ) : (
-                  <View style={[styles.categoryThumbPlaceholder, { backgroundColor: colors.inputBg }]}>
-                    <Ionicons name="image-outline" size={20} color={colors.textMuted} />
+                  <View
+                    style={[
+                      styles.categoryThumbPlaceholder,
+                      { backgroundColor: colors.inputBg },
+                    ]}
+                  >
+                    <Ionicons
+                      name="image-outline"
+                      size={20}
+                      color={colors.textMuted}
+                    />
                   </View>
                 )}
-                <Text variant="sm" weight="bold" style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text
+                  variant="sm"
+                  weight="bold"
+                  style={{ flex: 1, marginLeft: SPACING.sm }}
+                >
                   {cat.name.toUpperCase()}
                 </Text>
                 <View style={styles.listCardActions}>
@@ -300,13 +396,21 @@ export default function AdminCategories() {
                     style={styles.listActionIcon}
                     onPress={() => openEditModal(cat)}
                   >
-                    <Ionicons name="create-outline" size={18} color={colors.primary} />
+                    <Ionicons
+                      name="create-outline"
+                      size={18}
+                      color={colors.primary}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.listActionIcon}
                     onPress={() => handleDeleteCategory(cat._id)}
                   >
-                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={colors.error}
+                    />
                   </TouchableOpacity>
                 </View>
               </Card>
@@ -328,7 +432,9 @@ export default function AdminCategories() {
       {/* CATEGORY MODAL SHEET */}
       <Modal visible={isModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View
+            style={[styles.modalContent, { backgroundColor: colors.surface }]}
+          >
             <View style={styles.modalHeader}>
               <Text variant="md" weight="bold">
                 {modalType === "addCategory" ? "Add Category" : "Edit Category"}
@@ -349,11 +455,22 @@ export default function AdminCategories() {
 
                 {/* Image picker */}
                 <View style={{ marginTop: SPACING.md }}>
-                  <Text variant="xs" weight="bold" color={colors.textMuted} style={{ marginBottom: SPACING.sm }}>
+                  <Text
+                    variant="xs"
+                    weight="bold"
+                    color={colors.textMuted}
+                    style={{ marginBottom: SPACING.sm }}
+                  >
                     Category Image (Optional)
                   </Text>
                   <TouchableOpacity
-                    style={[styles.imagePickerBtn, { borderColor: colors.border, backgroundColor: colors.inputBg }]}
+                    style={[
+                      styles.imagePickerBtn,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.inputBg,
+                      },
+                    ]}
                     onPress={pickCategoryImage}
                     activeOpacity={0.7}
                   >
@@ -365,8 +482,16 @@ export default function AdminCategories() {
                       />
                     ) : (
                       <View style={styles.imagePickerEmpty}>
-                        <Ionicons name="cloud-upload-outline" size={28} color={colors.textMuted} />
-                        <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
+                        <Ionicons
+                          name="cloud-upload-outline"
+                          size={28}
+                          color={colors.textMuted}
+                        />
+                        <Text
+                          variant="xs"
+                          color={colors.textMuted}
+                          style={{ marginTop: 6 }}
+                        >
                           Tap to select image
                         </Text>
                       </View>
@@ -377,7 +502,9 @@ export default function AdminCategories() {
                       onPress={() => setCategoryImageUri(null)}
                       style={{ alignSelf: "flex-end", marginTop: 6 }}
                     >
-                      <Text variant="xs" color={colors.error}>Remove Image</Text>
+                      <Text variant="xs" color={colors.error}>
+                        Remove Image
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
