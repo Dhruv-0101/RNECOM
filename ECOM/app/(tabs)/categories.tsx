@@ -219,10 +219,24 @@ Since we reset setPage(1), the new query is starting fresh on Page 1. Clearing t
       ),
     [],
   );
-  const displayedProducts =
-    (isProductsLoading && productsList.length === 0) || isCategoriesLoading
-      ? dummyProductSkeletons
-      : productsList;
+  const displayedProducts = useMemo(() => {
+    if (
+      (isProductsLoading && productsList.length === 0) ||
+      isCategoriesLoading ||
+      (isProductsFetching && page === 1 && productsList.length === 0)
+    ) {
+      return dummyProductSkeletons;
+    }
+    if (
+      page === 1 &&
+      productsData?.products &&
+      productsList.length === 0 &&
+      productsData.products.length > 0
+    ) {
+      return productsData.products;
+    }
+    return productsList;
+  }, [isProductsLoading, isProductsFetching, isCategoriesLoading, productsList, productsData, page]);
 
   // Helper to resolve absolute URLs or local dev server paths for category images
   const getCategoryImageUrl = (imagePath: string) => {

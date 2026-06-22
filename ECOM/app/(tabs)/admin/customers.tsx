@@ -29,7 +29,7 @@ export default function AdminCustomers() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadCustomers = async (pageNum: number, searchVal: string, isAppend = false) => {
