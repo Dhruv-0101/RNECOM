@@ -22,6 +22,6 @@ productsRouter.post(
 
 productsRouter.get("/", getProductsCtrl);
 productsRouter.get("/:id", getProductCtrl);
-productsRouter.put("/:id", isLoggedIn, isAdmin, updateProductCtrl);
+productsRouter.put("/:id", isLoggedIn, isAdmin, upload.array("files"), updateProductCtrl);
 productsRouter.delete("/:id/delete", isLoggedIn, isAdmin, deleteProductCtrl);
 export default productsRouter;

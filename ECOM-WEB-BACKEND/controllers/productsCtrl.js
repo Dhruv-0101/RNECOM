@@ -3,6 +3,8 @@ import Brand from "../model/Brand.js";
 import Category from "../model/Category.js";
 import Product from "../model/Product.js";
 import { buildPagination } from "../utils/pagination.js";
+import cloudinaryPackage from "cloudinary";
+const cloudinary = cloudinaryPackage.v2;
 
 // @desc    Create new product
 // @route   POST /api/v1/products
@@ -168,9 +170,24 @@ export const getProductCtrl = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    update  product
-// @route   PUT /api/products/:id/update
-// @access  Private/Admin
+// Helper to extract Cloudinary public ID from URL
+const extractPublicId = (url) => {
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    const pathAfterUpload = parts[1];
+    // Remove version segment if present, e.g. v1570975203/
+    const versionMatch = pathAfterUpload.match(/^v\d+\/(.+)$/);
+    const cleanPath = versionMatch ? versionMatch[1] : pathAfterUpload;
+    // Strip extension
+    const lastDotIndex = cleanPath.lastIndexOf('.');
+    if (lastDotIndex === -1) return cleanPath;
+    return cleanPath.substring(0, lastDotIndex);
+  } catch (error) {
+    console.error("Error extracting public ID from Cloudinary URL:", error);
+    return null;
+  }
+};
 
 export const updateProductCtrl = asyncHandler(async (req, res) => {
   const {
@@ -183,7 +200,45 @@ export const updateProductCtrl = asyncHandler(async (req, res) => {
     price,
     totalQty,
     brand,
+    images,
+    deletedImages,
   } = req.body;
+
+  // Normalize images and deletedImages
+  let existingImages = [];
+  if (images) {
+    if (Array.isArray(images)) {
+      existingImages = images;
+    } else {
+      existingImages = [images];
+    }
+  }
+
+  let toDelete = [];
+  if (deletedImages) {
+    if (Array.isArray(deletedImages)) {
+      toDelete = deletedImages;
+    } else {
+      toDelete = [deletedImages];
+    }
+  }
+
+  // Delete removed images from Cloudinary
+  for (const imgUrl of toDelete) {
+    const publicId = extractPublicId(imgUrl);
+    if (publicId) {
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.error(`Failed to delete image ${publicId} from Cloudinary:`, err);
+      }
+    }
+  }
+
+  // Add new files
+  const newImgs = req.files ? req.files.map((file) => file?.path) : [];
+  const finalImages = [...existingImages, ...newImgs];
+
   //validation
 
   //update
@@ -199,6 +254,7 @@ export const updateProductCtrl = asyncHandler(async (req, res) => {
       price,
       totalQty,
       brand,
+      images: finalImages,
     },
     {
       new: true,

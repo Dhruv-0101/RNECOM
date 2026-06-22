@@ -69,6 +69,8 @@ export default function AdminProducts() {
 
   // Image picker state for products (array of URIs)
   const [productImageUris, setProductImageUris] = useState<string[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [deletedImages, setDeletedImages] = useState<string[]>([]);
 
   // Brands pagination
   const [brandsPage, setBrandsPage] = useState(1);
@@ -252,6 +254,8 @@ export default function AdminProducts() {
       sizes: [],
     });
     setProductImageUris([]);
+    setExistingImages([]);
+    setDeletedImages([]);
     setModalType("addProduct");
     setIsModalVisible(true);
   };
@@ -269,6 +273,8 @@ export default function AdminProducts() {
       sizes: prod.sizes || [],
     });
     setProductImageUris([]);
+    setExistingImages(prod.images || []);
+    setDeletedImages([]);
     setModalType("editProduct");
     setIsModalVisible(true);
   };
@@ -278,6 +284,8 @@ export default function AdminProducts() {
     setModalType(null);
     setSelectedProduct(null);
     setProductImageUris([]);
+    setExistingImages([]);
+    setDeletedImages([]);
   };
 
   const pickProductImages = async () => {
@@ -332,15 +340,37 @@ export default function AdminProducts() {
         });
         Alert.alert("Success", "Product added successfully!");
       } else if (modalType === "editProduct" && selectedProduct) {
-        await apiClient.put(`/api/v1/products/${selectedProduct._id}`, {
-          name,
-          description,
-          price: parseFloat(price),
-          totalQty: parseInt(totalQty),
-          brand,
-          category,
-          colors: pColors,
-          sizes,
+        const formData = new FormData();
+        formData.append("name", name);
+        formData.append("description", description);
+        formData.append("price", price);
+        formData.append("totalQty", totalQty);
+        formData.append("brand", brand);
+        formData.append("category", category);
+        pColors.forEach((c) => formData.append("colors", c));
+        sizes.forEach((s) => formData.append("sizes", s));
+
+        // Keep remaining existing images
+        const activeExisting = existingImages.filter((img) => !deletedImages.includes(img));
+        activeExisting.forEach((img) => formData.append("images", img));
+
+        // Track deleted images so backend can clean Cloudinary storage
+        deletedImages.forEach((img) => formData.append("deletedImages", img));
+
+        // New files added
+        productImageUris.forEach((uri, index) => {
+          const filename = uri.split("/").pop() || `product_image_${index}.jpg`;
+          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+          const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+          formData.append("files", {
+            uri,
+            name: filename,
+            type: mimeType,
+          } as any);
+        });
+
+        await apiClient.put(`/api/v1/products/${selectedProduct._id}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
         Alert.alert("Success", "Product updated successfully!");
       }
@@ -708,21 +738,49 @@ export default function AdminProducts() {
                   )}
                 </View>
 
-                {/* Product image picker — only for Add mode */}
-                {modalType === "addProduct" && (
+                {/* Product image picker — shown for both Add and Edit modes */}
+                {(modalType === "addProduct" || modalType === "editProduct") && (
                   <View style={{ marginTop: SPACING.md }}>
                     <Text variant="xs" weight="bold" color={colors.textMuted} style={{ marginBottom: SPACING.sm }}>
                       Product Images
                     </Text>
-                    <TouchableOpacity
-                      style={[styles.imagePickerBtn, { borderColor: colors.border, backgroundColor: colors.inputBg }]}
-                      onPress={pickProductImages}
-                      activeOpacity={0.7}
-                    >
-                      {productImageUris.length > 0 ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ padding: SPACING.xs }}>
+                    {existingImages.length > 0 || productImageUris.length > 0 ? (
+                      <View style={[styles.imagePickerBtn, { borderColor: colors.border, backgroundColor: colors.inputBg }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: SPACING.xs, alignItems: 'center' }}>
+                          {existingImages.map((uri, idx) => {
+                            const isDeleted = deletedImages.includes(uri);
+                            return (
+                              <View key={`existing-${idx}`} style={{ position: "relative", marginRight: SPACING.sm, opacity: isDeleted ? 0.5 : 1 }}>
+                                <Image
+                                  source={{ uri }}
+                                  style={styles.productThumbInPicker}
+                                  resizeMode="cover"
+                                />
+                                {isDeleted && (
+                                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0, 0, 0, 0.4)", borderRadius: BORDER_RADIUS.xs, alignItems: 'center', justifyContent: 'center' }]}>
+                                    <Ionicons name="trash" size={20} color="#fff" />
+                                  </View>
+                                )}
+                                {isDeleted ? (
+                                  <TouchableOpacity
+                                    style={styles.removeImageBtn}
+                                    onPress={() => setDeletedImages((prev) => prev.filter((img) => img !== uri))}
+                                  >
+                                    <Ionicons name="arrow-undo-circle" size={20} color={colors.primary} />
+                                  </TouchableOpacity>
+                                ) : (
+                                  <TouchableOpacity
+                                    style={styles.removeImageBtn}
+                                    onPress={() => setDeletedImages((prev) => [...prev, uri])}
+                                  >
+                                    <Ionicons name="close-circle" size={18} color={colors.error} />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            );
+                          })}
                           {productImageUris.map((uri, idx) => (
-                            <View key={idx} style={{ position: "relative", marginRight: SPACING.sm }}>
+                            <View key={`new-${idx}`} style={{ position: "relative", marginRight: SPACING.sm }}>
                               <Image
                                 source={{ uri }}
                                 style={styles.productThumbInPicker}
@@ -743,15 +801,21 @@ export default function AdminProducts() {
                             <Ionicons name="add" size={24} color={colors.primary} />
                           </TouchableOpacity>
                         </ScrollView>
-                      ) : (
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.imagePickerBtn, { borderColor: colors.border, backgroundColor: colors.inputBg }]}
+                        onPress={pickProductImages}
+                        activeOpacity={0.7}
+                      >
                         <View style={styles.imagePickerEmpty}>
                           <Ionicons name="images-outline" size={28} color={colors.textMuted} />
                           <Text variant="xs" color={colors.textMuted} style={{ marginTop: 6 }}>
                             Tap to add product photos
                           </Text>
                         </View>
-                      )}
-                    </TouchableOpacity>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
