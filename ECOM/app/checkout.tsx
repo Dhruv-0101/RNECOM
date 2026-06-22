@@ -90,7 +90,7 @@ export default function CheckoutScreen() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponPage, setCouponPage] = useState(1);
   const [hasMoreCoupons, setHasMoreCoupons] = useState(true);
-  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [loadingCoupons, setLoadingCoupons] = useState(true);
 
   const loadCoupons = async (
     pageNum: number,

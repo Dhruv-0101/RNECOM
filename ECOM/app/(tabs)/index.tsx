@@ -121,10 +121,20 @@ export default function Home() {
     [],
   );
 
-  const displayedCategories =
-    (isCategoriesLoading || isCategoriesFetching) && categoriesList.length === 0
-      ? dummyCategorySkeletons
-      : categoriesList;
+  const displayedCategories = useMemo(() => {
+    if ((isCategoriesLoading || isCategoriesFetching) && categoriesList.length === 0) {
+      return dummyCategorySkeletons;
+    }
+    if (
+      currentCategoryPage === 1 &&
+      categoriesData?.categories &&
+      categoriesList.length === 0 &&
+      categoriesData.categories.length > 0
+    ) {
+      return categoriesData.categories;
+    }
+    return categoriesList;
+  }, [isCategoriesLoading, isCategoriesFetching, categoriesList, categoriesData, currentCategoryPage]);
 
   const dummySkeletons = useMemo(
     () =>
@@ -135,10 +145,20 @@ export default function Home() {
       ),
     [],
   );
-  const displayedProducts =
-    (isLoading || isFetching) && productsList.length === 0
-      ? dummySkeletons
-      : productsList;
+  const displayedProducts = useMemo(() => {
+    if ((isLoading || isFetching) && productsList.length === 0) {
+      return dummySkeletons;
+    }
+    if (
+      currentProductPage === 1 &&
+      data?.products &&
+      productsList.length === 0 &&
+      data.products.length > 0
+    ) {
+      return data.products;
+    }
+    return productsList;
+  }, [isLoading, isFetching, productsList, data, currentProductPage]);
 
   const hasMoreToLoad =
     productsList.length > 0 &&

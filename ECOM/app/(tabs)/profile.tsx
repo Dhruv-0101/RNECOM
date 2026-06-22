@@ -60,7 +60,7 @@ export default function Profile() {
   const [orders, setOrders] = useState<PopulatedOrder[]>([]);
   const [ordersPage, setOrdersPage] = useState(1);
   const [hasMoreOrders, setHasMoreOrders] = useState(true);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
   // Address editing states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
