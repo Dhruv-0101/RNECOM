@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Coupon from "../model/Coupon.js";
 import { buildPagination } from "../utils/pagination.js";
+import { sendNotificationToAllUsers } from "../services/notificationService.js";
 // @desc    Create new Coupon
 // @route   POST /api/v1/coupons
 // @access  Private/Admin
@@ -28,6 +29,22 @@ export const createCouponCtrl = asyncHandler(async (req, res) => {
     discount,
     user: req.userAuthId,
   });
+
+  // Trigger push notification to all users
+  try {
+    const formattedExpiry = endDate ? new Date(endDate).toLocaleDateString() : "N/A";
+    await sendNotificationToAllUsers({
+      title: "New Coupon Alert! 🌟",
+      body: `Use coupon code "${coupon.code.toUpperCase()}" to get ${coupon.discount}% off! Expires on ${formattedExpiry}.`,
+      data: {
+        type: "NEW_COUPON",
+        couponCode: coupon.code,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to send new coupon notification:", error);
+  }
+
   //send the response
   res.status(201).json({
     status: "success",

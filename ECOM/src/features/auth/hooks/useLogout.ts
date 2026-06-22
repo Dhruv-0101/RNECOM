@@ -5,6 +5,7 @@ import { authApi } from "../api/authApi";
 import { secureStorage } from "@/src/services/storage/secureStorage";
 import { AppDispatch } from "@/src/store/store";
 import { clearWishlist } from "@/src/features/wishlist/store/wishlistSlice";
+import { unregisterPushTokenOnBackend } from "@/src/services/notifications/pushNotifications";
 
 export const useLogout = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -12,6 +13,13 @@ export const useLogout = () => {
 
   const logout = async () => {
     try {
+      // 0. Unregister push token on backend
+      const pushToken = await secureStorage.getPushToken();
+      if (pushToken) {
+        await unregisterPushTokenOnBackend(pushToken);
+        await secureStorage.removePushToken();
+      }
+
       // 1. Revoke the refresh token on the backend
       const refreshToken = await secureStorage.getRefreshToken();
       if (refreshToken) {

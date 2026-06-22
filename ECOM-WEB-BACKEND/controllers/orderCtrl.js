@@ -7,6 +7,7 @@ import Order from "../model/Order.js";
 import Product from "../model/Product.js";
 import User from "../model/User.js";
 import Coupon from "../model/Coupon.js";
+import { sendNotificationToUser } from "../services/notificationService.js";
 
 //-------------------------MOST IMPORTANT---------------------------//
 
@@ -89,6 +90,7 @@ export const createOrderCtrl = asyncHandler(async (req, res) => {
   // push order into user
   user.orders.push(order?._id);
   await user.save();
+
 
   // make payment (stripe)
   // convert order items to have same structure that stripe needs and apply coupon discounts
@@ -209,20 +211,67 @@ export const getSingleOrderCtrl = asyncHandler(async (req, res) => {
 export const updateOrderCtrl = asyncHandler(async (req, res) => {
   //get the id from params
   const id = req.params.id;
-  //update
-  const updatedOrder = await Order.findByIdAndUpdate(
-    id,
-    {
-      status: req.body.status,
-    },
-    {
-      new: true,
+  const { status } = req.body;
+
+  const order = await Order.findById(id);
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  const oldStatus = order.status;
+  const newStatus = status;
+
+  order.status = newStatus;
+  await order.save();
+
+  // Trigger push notification if status changes to one of the watched statuses and has not been notified yet
+  const normalizedStatus = newStatus.toLowerCase();
+  const validStatuses = ["pending", "processing", "shipped", "delivered"];
+  
+  if (validStatuses.includes(normalizedStatus) && !order.notifiedStatuses.includes(normalizedStatus)) {
+    const templates = {
+      pending: {
+        title: "Order Placed 📦",
+        body: "Your order has been placed successfully.",
+      },
+      processing: {
+        title: "Order Processing ⚙️",
+        body: "Your order is now being processed.",
+      },
+      shipped: {
+        title: "Order Shipped 🚚",
+        body: "Your order has been shipped and is on its way.",
+      },
+      delivered: {
+        title: "Order Delivered 🎉",
+        body: "Your order has been delivered successfully.",
+      },
+    };
+
+    const template = templates[normalizedStatus];
+    if (template) {
+      try {
+        await sendNotificationToUser(order.user, {
+          title: template.title,
+          body: template.body,
+          data: {
+            type: "ORDER_STATUS",
+            orderId: order._id.toString(),
+          },
+        });
+        order.notifiedStatuses.push(normalizedStatus);
+        await order.save();
+      } catch (err) {
+        console.error(`Failed to send order status notification for ${normalizedStatus}:`, err);
+      }
     }
-  );
+  }
+
   res.status(200).json({
     success: true,
     message: "Order updated",
-    updatedOrder,
+    updatedOrder: order,
   });
 });
 

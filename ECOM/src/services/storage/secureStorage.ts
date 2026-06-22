@@ -123,6 +123,30 @@ export const secureStorage = {
   async removeToken(): Promise<void> {
     await this.clearTokens();
   },
+
+  async setPushToken(token: string): Promise<void> {
+    try {
+      await SecureStore.setItemAsync("push_token", token);
+    } catch (e) {
+      console.error("Error setting push token in storage:", e);
+    }
+  },
+
+  async getPushToken(): Promise<string | null> {
+    try {
+      return await SecureStore.getItemAsync("push_token");
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async removePushToken(): Promise<void> {
+    try {
+      await SecureStore.deleteItemAsync("push_token");
+    } catch (e) {
+      console.error("Error removing push token from storage:", e);
+    }
+  },
 };
 
 export default secureStorage;

@@ -15,6 +15,7 @@ import reviewRouter from "../routes/reviewRouter.js";
 import userRoutes from "../routes/usersRoute.js";
 import Order from "../model/Order.js";
 import couponsRouter from "../routes/couponsRouter.js";
+import { sendNotificationToUser } from "../services/notificationService.js";
 import wishlistRouter from "../routes/wishlistRouter.js";
 
 //db connect
@@ -74,6 +75,24 @@ app.post(
         }
       );
       console.log(order);
+
+      // Send pending order status notification when payment succeeds
+      if (order && (paymentStatus === "paid" || paymentStatus === "Paid") && !order.notifiedStatuses.includes("pending")) {
+        try {
+          await sendNotificationToUser(order.user, {
+            title: "Order Placed 📦",
+            body: "Your order has been placed successfully.",
+            data: {
+              type: "ORDER_STATUS",
+              orderId: order._id.toString(),
+            },
+          });
+          order.notifiedStatuses.push("pending");
+          await order.save();
+        } catch (err) {
+          console.log("Error sending payment success notification in webhook:", err.message);
+        }
+      }
     } else {
       return;
     }
@@ -119,6 +138,24 @@ app.get("/success", async (req, res) => {
           order.totalPrice = session.amount_total / 100;
           await order.save();
           console.log(`Order ${order._id} marked as Paid via success URL verification.`);
+        }
+
+        // Send pending order status notification when payment succeeds (success URL fallback)
+        if (order && !order.notifiedStatuses.includes("pending")) {
+          try {
+            await sendNotificationToUser(order.user, {
+              title: "Order Placed 📦",
+              body: "Your order has been placed successfully.",
+              data: {
+                type: "ORDER_STATUS",
+                orderId: order._id.toString(),
+              },
+            });
+            order.notifiedStatuses.push("pending");
+            await order.save();
+          } catch (err) {
+            console.log("Error sending payment success notification in success URL:", err.message);
+          }
         }
       }
     } catch (err) {

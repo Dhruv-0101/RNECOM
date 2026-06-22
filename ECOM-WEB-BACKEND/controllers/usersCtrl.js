@@ -166,3 +166,47 @@ export const getAllUsersCtrl = asyncHandler(async (req, res) => {
     data: formattedUsers,
   });
 });
+
+// @desc    Register push token
+// @route   POST /api/v1/users/push-token
+// @access  Private
+export const registerPushTokenCtrl = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400);
+    throw new Error("Push token is required");
+  }
+
+  await User.findByIdAndUpdate(
+    req.userAuthId,
+    { $addToSet: { pushTokens: token } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    status: "success",
+    message: "Push token registered successfully",
+  });
+});
+
+// @desc    Unregister push token
+// @route   DELETE /api/v1/users/push-token
+// @access  Private
+export const unregisterPushTokenCtrl = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400);
+    throw new Error("Push token is required");
+  }
+
+  await User.findByIdAndUpdate(
+    req.userAuthId,
+    { $pull: { pushTokens: token } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    status: "success",
+    message: "Push token unregistered successfully",
+  });
+});

@@ -50,6 +50,10 @@ const OrderSchema = new Schema(
     deliveredAt: {
       type: Date,
     },
+    notifiedStatuses: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

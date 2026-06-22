@@ -13,6 +13,8 @@ export const ENDPOINTS = {
     MOBILE_LOGIN: "/api/v1/users/mobile/login",       // POST - Mobile User Sign In
     MOBILE_REFRESH: "/api/v1/users/mobile/refresh",   // POST - Mobile Token Rotation Refresh
     MOBILE_LOGOUT: "/api/v1/users/mobile/logout",     // POST - Mobile User Sign Out
+    REGISTER_PUSH_TOKEN: "/api/v1/users/push-token",   // POST - Register device push token
+    UNREGISTER_PUSH_TOKEN: "/api/v1/users/push-token", // DELETE - Unregister device push token
   },
   PRODUCTS: {
     LIST: "/api/v1/products", // GET - Fetch products list with filtering/pagination

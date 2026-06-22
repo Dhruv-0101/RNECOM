@@ -5,6 +5,8 @@ import {
   getUserProfileCtrl,
   updateShippingAddresctrl,
   getAllUsersCtrl,
+  registerPushTokenCtrl,
+  unregisterPushTokenCtrl,
 } from "../controllers/usersCtrl.js";
 import {
   mobileLoginUserCtrl,
@@ -21,6 +23,8 @@ userRoutes.post("/register", registerUserCtrl);
 userRoutes.post("/login", loginUserCtrl);
 userRoutes.get("/profile", isLoggedIn, getUserProfileCtrl);
 userRoutes.put("/update/shipping", isLoggedIn, updateShippingAddresctrl);
+userRoutes.post("/push-token", isLoggedIn, registerPushTokenCtrl);
+userRoutes.delete("/push-token", isLoggedIn, unregisterPushTokenCtrl);
 
 // Mobile RTR Routes
 userRoutes.post("/mobile/login", mobileLoginUserCtrl);

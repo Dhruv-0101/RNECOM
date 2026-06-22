@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
+import { LogBox } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+
+LogBox.ignoreLogs([
+  "expo-notifications: Android Push notifications",
+]);
 import { ReduxProvider } from "@/src/shared/providers/ReduxProvider";
 import { QueryProvider } from "@/src/shared/providers/QueryProvider";
 import { ThemeProvider, useTheme } from "@/src/shared/providers/ThemeProvider";
@@ -13,6 +18,19 @@ import { setWishlist } from "@/src/features/wishlist/store/wishlistSlice";
 import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 import { AppDispatch } from "@/src/store/store";
 import { SplashScreen } from "@/src/shared/ui/SplashScreen";
+import * as Notifications from "expo-notifications";
+import { useRef } from "react";
+import { registerForPushNotificationsAsync, registerPushTokenOnBackend } from "@/src/services/notifications/pushNotifications";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 function RootLayoutNav() {
   /*
@@ -31,6 +49,9 @@ Splash Screen and letting routing guards execute safely without glitches.
   const segments = useSegments();
   const router = useRouter();
   const { colors, theme } = useTheme();
+
+  const responseListener = useRef<any>(null);
+  const notificationListener = useRef<any>(null);
 
   // 1. Hydrate auth state from Secure Store and show Splash Screen
   useEffect(() => {
@@ -128,6 +149,64 @@ Splash Screen and letting routing guards execute safely without glitches.
       router.replace("/");
     }
   }, [isAuthenticated, isInitialized, showSplash, segments, router]);
+
+  // 3. Handle Push Notifications setup and tap/received listeners
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Register push notification token
+    const setupNotifications = async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        await registerPushTokenOnBackend(token);
+      }
+    };
+    setupNotifications();
+
+    // Listen for notification response (taps) in foreground / background / closed states
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("Notification received in foreground:", notification);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { type?: string; orderId?: string };
+      console.log("Notification tapped with data:", data);
+
+      if (data && data.type === "ORDER_STATUS" && data.orderId) {
+        router.push({
+          pathname: "/profile",
+          params: { orderId: data.orderId },
+        });
+      } else if (data && data.type === "NEW_COUPON") {
+        router.push("/");
+      }
+    });
+
+    // Check if the app was launched by tapping a notification (closed state launch)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const data = response.notification.request.content.data as { type?: string; orderId?: string };
+        console.log("App launched from notification with data:", data);
+        if (data && data.type === "ORDER_STATUS" && data.orderId) {
+          router.push({
+            pathname: "/profile",
+            params: { orderId: data.orderId },
+          });
+        } else if (data && data.type === "NEW_COUPON") {
+          router.push("/");
+        }
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
+  }, [isAuthenticated, router]);
 
   // Render Premium Brand Splash Screen
   if (!isInitialized || showSplash) {

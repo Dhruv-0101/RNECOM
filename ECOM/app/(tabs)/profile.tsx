@@ -12,7 +12,7 @@ import {
   UIManager,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useDispatch } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -56,11 +56,39 @@ export default function Profile() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+
   // Pagination states for customer orders
   const [orders, setOrders] = useState<PopulatedOrder[]>([]);
   const [ordersPage, setOrdersPage] = useState(1);
   const [hasMoreOrders, setHasMoreOrders] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // Synchronize expanded order from query parameters (deep links)
+  useEffect(() => {
+    if (orderId && isAuthenticated) {
+      setActiveTab("orders");
+      setExpandedOrderId(orderId);
+
+      const exists = orders.some((o) => o && o._id === orderId);
+      if (!exists && !loadingOrders) {
+        const fetchAndPrependOrder = async () => {
+          try {
+            const res = await apiClient.get(`/api/v1/orders/${orderId}`);
+            if (res.data?.order) {
+              setOrders((prev) => {
+                if (prev.some((o) => o && o._id === orderId)) return prev;
+                return [res.data.order, ...prev];
+              });
+            }
+          } catch (err) {
+            console.log("Failed to fetch deep-linked order:", err);
+          }
+        };
+        fetchAndPrependOrder();
+      }
+    }
+  }, [orderId, isAuthenticated, orders.length, loadingOrders]);
 
   // Address editing states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
