@@ -28,6 +28,32 @@ const shippingAddressSlice = createSlice({
   name: "shippingAddress",
   initialState,
   reducers: {
+    syncProfileAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id" | "isProfileAddress">>) => {
+      if (state.profileAddressDeleted) {
+        // Do not re-sync if the user explicitly deleted the profile address
+        return;
+      }
+
+      const index = state.addresses.findIndex((a) => a.isProfileAddress);
+      if (index !== -1) {
+        state.addresses[index] = {
+          ...state.addresses[index],
+          ...action.payload,
+        };
+      } else {
+        const newId = "profile-default";
+        state.addresses.unshift({
+          ...action.payload,
+          id: newId,
+          isProfileAddress: true,
+          isDefault: state.addresses.length === 0,
+        });
+        if (!state.selectedAddressId) {
+          state.selectedAddressId = newId;
+        }
+      }
+      state.hasSyncedProfile = true;
+    },
     updateFormFields: (state, action: PayloadAction<Partial<ShippingAddressForm>>) => {
       state.currentForm = {
         ...state.currentForm,
@@ -105,15 +131,37 @@ const shippingAddressSlice = createSlice({
         }
       }
     },
-    addSavedAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id">>) => {
-      const newId = Math.random().toString(36).substring(7);
-      const newAddress: ShippingAddress = {
-        ...action.payload,
-        id: newId,
-      };
-      state.addresses.push(newAddress);
-      if (!state.selectedAddressId) {
-        state.selectedAddressId = newId;
+    loadAddressIntoForm: (state, action: PayloadAction<string>) => {
+      const addr = state.addresses.find((a) => a.id === action.payload);
+      if (addr) {
+        state.selectedAddressId = addr.id;
+        state.currentForm = {
+          recipientFirstName: addr.recipientFirstName,
+          recipientLastName: addr.recipientLastName,
+          recipientPhone: addr.recipientPhone,
+          streetAddress: addr.streetAddress,
+          city: addr.city,
+          state: addr.state,
+          postalCode: addr.postalCode,
+          country: addr.country,
+          label: addr.label,
+          isOrderForMe: false,
+        };
+      }
+    },
+    deleteAddress: (state, action: PayloadAction<string>) => {
+      const addressToDelete = state.addresses.find((a) => a.id === action.payload);
+      if (addressToDelete?.isProfileAddress) {
+        state.profileAddressDeleted = true;
+      }
+
+      state.addresses = state.addresses.filter((a) => a.id !== action.payload);
+      if (state.selectedAddressId === action.payload) {
+        if (state.addresses.length > 0) {
+          state.selectedAddressId = state.addresses[0].id;
+        } else {
+          state.selectedAddressId = null;
+        }
       }
     },
     selectAddress: (state, action: PayloadAction<string>) => {
@@ -134,75 +182,28 @@ const shippingAddressSlice = createSlice({
         };
       }
     },
+    resetFormState: (state) => {
+      state.currentForm = initialForm;
+      state.selectedAddressId = null;
+    },
+
+    addSavedAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id">>) => {
+      const newId = Math.random().toString(36).substring(7);
+      const newAddress: ShippingAddress = {
+        ...action.payload,
+        id: newId,
+      };
+      state.addresses.push(newAddress);
+      if (!state.selectedAddressId) {
+        state.selectedAddressId = newId;
+      }
+    },
     setDefaultAddress: (state, action: PayloadAction<string>) => {
       state.addresses = state.addresses.map((a) => ({
         ...a,
         isDefault: a.id === action.payload,
       }));
-    },
-    deleteAddress: (state, action: PayloadAction<string>) => {
-      const addressToDelete = state.addresses.find((a) => a.id === action.payload);
-      if (addressToDelete?.isProfileAddress) {
-        state.profileAddressDeleted = true;
-      }
-
-      state.addresses = state.addresses.filter((a) => a.id !== action.payload);
-      if (state.selectedAddressId === action.payload) {
-        if (state.addresses.length > 0) {
-          state.selectedAddressId = state.addresses[0].id;
-        } else {
-          state.selectedAddressId = null;
-        }
-      }
-    },
-    loadAddressIntoForm: (state, action: PayloadAction<string>) => {
-      const addr = state.addresses.find((a) => a.id === action.payload);
-      if (addr) {
-        state.selectedAddressId = addr.id;
-        state.currentForm = {
-          recipientFirstName: addr.recipientFirstName,
-          recipientLastName: addr.recipientLastName,
-          recipientPhone: addr.recipientPhone,
-          streetAddress: addr.streetAddress,
-          city: addr.city,
-          state: addr.state,
-          postalCode: addr.postalCode,
-          country: addr.country,
-          label: addr.label,
-          isOrderForMe: false,
-        };
-      }
-    },
-    resetFormState: (state) => {
-      state.currentForm = initialForm;
-      state.selectedAddressId = null;
-    },
-    syncProfileAddress: (state, action: PayloadAction<Omit<ShippingAddress, "id" | "isProfileAddress">>) => {
-      if (state.profileAddressDeleted) {
-        // Do not re-sync if the user explicitly deleted the profile address
-        return;
-      }
-
-      const index = state.addresses.findIndex((a) => a.isProfileAddress);
-      if (index !== -1) {
-        state.addresses[index] = {
-          ...state.addresses[index],
-          ...action.payload,
-        };
-      } else {
-        const newId = "profile-default";
-        state.addresses.unshift({
-          ...action.payload,
-          id: newId,
-          isProfileAddress: true,
-          isDefault: state.addresses.length === 0,
-        });
-        if (!state.selectedAddressId) {
-          state.selectedAddressId = newId;
-        }
-      }
-      state.hasSyncedProfile = true;
-    },
+    }
   },
 });
 

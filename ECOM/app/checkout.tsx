@@ -64,7 +64,7 @@ export default function CheckoutScreen() {
       const names = (user.fullname || "").trim().split(/\s+/);
       const firstName = names[0] || "";
       const lastName = names.slice(1).join(" ") || "";
-      
+
       const profileAddr = {
         recipientFirstName: user.shippingAddress.firstName || firstName,
         recipientLastName: user.shippingAddress.lastName || lastName,
@@ -77,9 +77,9 @@ export default function CheckoutScreen() {
         label: "Home" as const,
         isDefault: addresses.length === 0,
       };
-      
+
       dispatch(syncProfileAddress(profileAddr));
-      
+
       if (addresses.length === 0) {
         setIsEditingAddress(false);
       }
@@ -92,31 +92,48 @@ export default function CheckoutScreen() {
   const [hasMoreCoupons, setHasMoreCoupons] = useState(true);
   const [loadingCoupons, setLoadingCoupons] = useState(false);
 
-  const loadCoupons = async (pageNum: number, isAppend = false) => {
+  const loadCoupons = async (
+    pageNum: number,
+    isAppend = false
+  ) => {
     setLoadingCoupons(true);
+
     try {
       const res = await couponsApi.getCoupons({
         page: pageNum,
         limit: COUPON_PAGINATION.CHECKOUT_LIMIT,
       });
+
       const fetchedCoupons = res?.coupons || [];
+
       if (isAppend) {
         setCoupons((prev) => {
-          const existingIds = new Set(prev.map((c) => c._id));
-          const uniqueNew = fetchedCoupons.filter((c) => !existingIds.has(c._id));
+          const existingIds = new Set(
+            prev.map((c) => c._id)
+          );
+
+          const uniqueNew = fetchedCoupons.filter(
+            (c) => !existingIds.has(c._id)
+          );
+
           return [...prev, ...uniqueNew];
         });
       } else {
         setCoupons(fetchedCoupons);
       }
-      setHasMoreCoupons(fetchedCoupons.length === COUPON_PAGINATION.CHECKOUT_LIMIT);
+
+      setHasMoreCoupons(
+        !!res?.pagination?.next
+      );
     } catch (err) {
-      console.log("Failed to load coupons in checkout:", err);
+      console.log(
+        "Failed to load coupons in checkout:",
+        err
+      );
     } finally {
       setLoadingCoupons(false);
     }
   };
-
   React.useEffect(() => {
     loadCoupons(1, false);
   }, []);
@@ -158,15 +175,15 @@ export default function CheckoutScreen() {
     if (!streetAddress.trim()) errs.streetAddress = "Street address is required";
     if (!city.trim()) errs.city = "City is required";
     if (!state.trim()) errs.state = "State is required";
-    
+
     if (!postalCode.trim()) {
       errs.postalCode = "Postal code is required";
     } else if (!/^[A-Z0-9\s-]{3,10}$/i.test(postalCode.trim())) {
       errs.postalCode = "Invalid postal code format";
     }
-    
+
     if (!country.trim()) errs.country = "Country is required";
-    
+
     if (!recipientPhone.trim()) {
       errs.recipientPhone = "Phone number is required";
     } else if (!/^\+?[\d\s-]{10,15}$/.test(recipientPhone.trim())) {
@@ -268,7 +285,7 @@ export default function CheckoutScreen() {
     setIsEditingAddress(true);
   };
 
-  // Coupon handling
+  // Coupon handling //writing
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
       setCouponError("Please enter a coupon code");
