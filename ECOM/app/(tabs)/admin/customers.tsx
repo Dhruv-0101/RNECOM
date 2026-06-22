@@ -19,6 +19,7 @@ import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { CUSTOMER_PAGINATION } from "@/src/features/customers/config/pagination";
 import { customersApi, Customer } from "@/src/features/customers/api/customersApi";
+import { AdminCustomerSkeleton } from "@/src/shared/ui/Skeleton";
 
 export default function AdminCustomers() {
   const { colors } = useTheme();
@@ -123,13 +124,19 @@ export default function AdminCustomers() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && customers.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {customers.length === 0 ? (
+        {loading && !refreshing && customers.length === 0 ? (
+          <View style={{ gap: SPACING.md }}>
+            {Array.from({ length: CUSTOMER_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+              <AdminCustomerSkeleton key={`admin-customer-initial-skeleton-${i}`} />
+            ))}
+          </View>
+        ) : customers.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching customers found." : "No customer transactions recorded in system yet."}
           </Text>
@@ -184,15 +191,22 @@ export default function AdminCustomers() {
                 </View>
               </Card>
             ))}
-            {hasMore && (
+            {hasMore && !loading && (
               <Button
                 title="Load More"
                 onPress={handleLoadMore}
-                loading={loading}
+                loading={false}
                 disabled={loading}
                 variant="outline"
                 style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
               />
+            )}
+            {loading && customers.length > 0 && (
+              <View style={{ marginTop: SPACING.md, gap: SPACING.md }}>
+                {Array.from({ length: CUSTOMER_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+                  <AdminCustomerSkeleton key={`admin-customer-loadmore-skeleton-${i}`} />
+                ))}
+              </View>
             )}
           </>
         )}

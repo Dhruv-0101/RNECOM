@@ -27,6 +27,7 @@ import { PRODUCT_PAGINATION } from "@/src/features/products/config/pagination";
 import { BRAND_PAGINATION } from "@/src/features/brands/config/pagination";
 import { CATEGORY_PAGINATION } from "@/src/features/categories/config/pagination";
 import { COLOR_PAGINATION } from "@/src/features/colors/config/pagination";
+import { AdminProductSkeleton } from "@/src/shared/ui/Skeleton";
 
 interface BrandOrColor {
   _id: string;
@@ -506,13 +507,19 @@ export default function AdminProducts() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && products.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {products.length === 0 ? (
+        {loading && !refreshing && products.length === 0 ? (
+          <View style={{ gap: SPACING.md }}>
+            {Array.from({ length: PRODUCT_PAGINATION.ADMIN_PRODUCT_LIMIT }).map((_, i) => (
+              <AdminProductSkeleton key={`admin-product-initial-skeleton-${i}`} />
+            ))}
+          </View>
+        ) : products.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching products found." : "No products found. Add some using the \"+\" button in the header."}
           </Text>
@@ -561,15 +568,22 @@ export default function AdminProducts() {
                 </View>
               </Card>
             ))}
-            {hasMore && (
+            {hasMore && !loading && (
               <Button
                 title="Load More"
                 onPress={handleLoadMore}
-                loading={loading}
+                loading={false}
                 disabled={loading}
                 variant="outline"
                 style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
               />
+            )}
+            {loading && products.length > 0 && (
+              <View style={{ marginTop: SPACING.md, gap: SPACING.md }}>
+                {Array.from({ length: PRODUCT_PAGINATION.ADMIN_PRODUCT_LIMIT }).map((_, i) => (
+                  <AdminProductSkeleton key={`admin-product-loadmore-skeleton-${i}`} />
+                ))}
+              </View>
             )}
           </>
         )}

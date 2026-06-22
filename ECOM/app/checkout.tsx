@@ -834,7 +834,7 @@ export default function CheckoutScreen() {
                                   </TouchableOpacity>
                                 ))}
 
-                                {hasMoreCoupons && (
+                                {hasMoreCoupons && !loadingCoupons && (
                                   <TouchableOpacity
                                     onPress={handleLoadMoreCoupons}
                                     activeOpacity={0.7}
@@ -849,22 +849,24 @@ export default function CheckoutScreen() {
                                       },
                                     ]}
                                   >
-                                    {loadingCoupons ? (
-                                      <ActivityIndicator size="small" color={colors.primary} />
-                                    ) : (
-                                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                        <Ionicons
-                                          name="chevron-forward-circle"
-                                          size={12}
-                                          color={colors.primary}
-                                          style={{ marginRight: 6 }}
-                                        />
-                                        <Text variant="xs" weight="bold" color={colors.primary}>
-                                          Load More Offers ⚡
-                                        </Text>
-                                      </View>
-                                    )}
+                                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                      <Ionicons
+                                        name="chevron-forward-circle"
+                                        size={12}
+                                        color={colors.primary}
+                                        style={{ marginRight: 6 }}
+                                      />
+                                      <Text variant="xs" weight="bold" color={colors.primary}>
+                                        Load More Offers ⚡
+                                      </Text>
+                                    </View>
                                   </TouchableOpacity>
+                                )}
+
+                                {loadingCoupons && coupons.length > 0 && (
+                                  Array.from({ length: COUPON_PAGINATION.CHECKOUT_LIMIT }).map((_, i) => (
+                                    <CouponSkeleton key={`checkout-coupon-loadmore-skeleton-${i}`} />
+                                  ))
                                 )}
                               </>
                             )}

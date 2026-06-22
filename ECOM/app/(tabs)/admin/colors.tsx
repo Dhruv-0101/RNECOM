@@ -20,6 +20,7 @@ import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { COLOR_PAGINATION } from "@/src/features/colors/config/pagination";
+import { AdminItemSkeleton } from "@/src/shared/ui/Skeleton";
 
 interface Color {
   _id: string;
@@ -220,13 +221,19 @@ export default function AdminColors() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && colorsList.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {colorsList.length === 0 ? (
+        {loading && !refreshing && colorsList.length === 0 ? (
+          <View style={{ gap: SPACING.md }}>
+            {Array.from({ length: COLOR_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+              <AdminItemSkeleton key={`admin-color-initial-skeleton-${i}`} hasColorIndicator={true} />
+            ))}
+          </View>
+        ) : colorsList.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching colors found." : "No colors saved."}
           </Text>
@@ -256,15 +263,22 @@ export default function AdminColors() {
                 </View>
               </Card>
             ))}
-            {hasMore && (
+            {hasMore && !loading && (
               <Button
                 title="Load More"
                 onPress={handleLoadMore}
-                loading={loading}
+                loading={false}
                 disabled={loading}
                 variant="outline"
                 style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
               />
+            )}
+            {loading && colorsList.length > 0 && (
+              <View style={{ marginTop: SPACING.md, gap: SPACING.md }}>
+                {Array.from({ length: COLOR_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+                  <AdminItemSkeleton key={`admin-color-loadmore-skeleton-${i}`} hasColorIndicator={true} />
+                ))}
+              </View>
             )}
           </>
         )}

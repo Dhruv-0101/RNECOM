@@ -22,6 +22,7 @@ import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { PopulatedOrder } from "@/src/features/auth/types/auth.types";
 import { ORDER_PAGINATION } from "@/src/features/orders/config/pagination";
+import { OrderSkeletonCard } from "@/src/shared/ui/Skeleton";
 
 export default function AdminOrders() {
   const { colors, isDark } = useTheme();
@@ -171,13 +172,19 @@ export default function AdminOrders() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && orders.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {orders.length === 0 ? (
+        {loading && !refreshing && orders.length === 0 ? (
+          <View style={{ gap: SPACING.md }}>
+            {Array.from({ length: ORDER_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+              <OrderSkeletonCard key={`admin-order-initial-skeleton-${i}`} />
+            ))}
+          </View>
+        ) : orders.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching orders found." : "No orders registered on server yet."}
           </Text>
@@ -274,15 +281,22 @@ export default function AdminOrders() {
                 </Card>
               );
             })}
-            {hasMore && (
+            {hasMore && !loading && (
               <Button
                 title="Load More"
                 onPress={handleLoadMore}
-                loading={loading}
+                loading={false}
                 disabled={loading}
                 variant="outline"
                 style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
               />
+            )}
+            {loading && orders.length > 0 && (
+              <View style={{ marginTop: SPACING.md, gap: SPACING.md }}>
+                {Array.from({ length: ORDER_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+                  <OrderSkeletonCard key={`admin-order-loadmore-skeleton-${i}`} />
+                ))}
+              </View>
             )}
           </>
         )}

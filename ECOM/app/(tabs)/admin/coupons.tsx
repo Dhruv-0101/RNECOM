@@ -23,7 +23,6 @@ import { Coupon } from "@/src/features/coupons/types/coupon.types";
 import { AdminCouponSkeleton } from "@/src/shared/ui/Skeleton";
 import { COUPON_PAGINATION } from "@/src/features/coupons/config/pagination";
 
-
 export default function AdminCoupons() {
   const { colors } = useTheme();
   const router = useRouter();
@@ -234,97 +233,104 @@ export default function AdminCoupons() {
           </View>
         )}
 
-        {loading && !refreshing && coupons.length === 0 ? (
-          Array.from({ length: COUPON_PAGINATION.HEADER_LIMIT }).map((_, i) => (
-            <AdminCouponSkeleton key={`admin-coupon-skeleton-${i}`} />
-          ))
-        ) : filteredCoupons.length === 0 ? (
-          !loading && (
-            <Text
-              variant="sm"
-              color={colors.textMuted}
-              align="center"
-              style={{ marginTop: SPACING.xxl }}
-            >
-              {searchQuery
-                ? "No matching coupons found."
-                : "No active coupons on server."}
-            </Text>
-          )
-        ) : (
-
-          filteredCoupons.map((cop) => {
-            const startD = new Date(cop.startDate).toLocaleDateString();
-            const endD = new Date(cop.endDate).toLocaleDateString();
-
-            return (
-              <Card
-                key={cop._id}
-                style={[styles.couponCard, { borderColor: colors.border }]}
-              >
-                <View style={styles.couponHeader}>
-                  <View
-                    style={[
-                      styles.couponBadge,
-                      { backgroundColor: colors.primaryLight },
-                    ]}
-                  >
-                    <Text variant="sm" weight="bold" color={colors.primary}>
-                      {cop.code}
-                    </Text>
-                  </View>
-                  <Text variant="md" weight="bold" color={colors.success}>
-                    {cop.discount}% OFF
-                  </Text>
-                </View>
+        {loading && !refreshing && coupons.length === 0
+          ? Array.from({ length: COUPON_PAGINATION.ADMIN_SHOW_LIMIT }).map(
+              (_, i) => (
+                <AdminCouponSkeleton key={`admin-coupon-skeleton-${i}`} />
+              ),
+            )
+          : filteredCoupons.length === 0
+            ? !loading && (
                 <Text
-                  variant="xs"
+                  variant="sm"
                   color={colors.textMuted}
-                  style={{ marginTop: 8 }}
+                  align="center"
+                  style={{ marginTop: SPACING.xxl }}
                 >
-                  Validity: {startD} to {endD}
+                  {searchQuery
+                    ? "No matching coupons found."
+                    : "No active coupons on server."}
                 </Text>
+              )
+            : filteredCoupons.map((cop) => {
+                const startD = new Date(cop.startDate).toLocaleDateString();
+                const endD = new Date(cop.endDate).toLocaleDateString();
 
-                <View style={[styles.cardActions, { marginTop: SPACING.md }]}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { borderColor: colors.border }]}
-                    onPress={() => openEditModal(cop)}
+                return (
+                  <Card
+                    key={cop._id}
+                    style={[styles.couponCard, { borderColor: colors.border }]}
                   >
-                    <Ionicons
-                      name="create-outline"
-                      size={16}
-                      color={colors.primary}
-                    />
+                    <View style={styles.couponHeader}>
+                      <View
+                        style={[
+                          styles.couponBadge,
+                          { backgroundColor: colors.primaryLight },
+                        ]}
+                      >
+                        <Text variant="sm" weight="bold" color={colors.primary}>
+                          {cop.code}
+                        </Text>
+                      </View>
+                      <Text variant="md" weight="bold" color={colors.success}>
+                        {cop.discount}% OFF
+                      </Text>
+                    </View>
                     <Text
                       variant="xs"
-                      color={colors.primary}
-                      style={{ marginLeft: 4 }}
+                      color={colors.textMuted}
+                      style={{ marginTop: 8 }}
                     >
-                      Edit
+                      Validity: {startD} to {endD}
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { borderColor: colors.border }]}
-                    onPress={() => handleDeleteCoupon(cop._id)}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={16}
-                      color={colors.error}
-                    />
-                    <Text
-                      variant="xs"
-                      color={colors.error}
-                      style={{ marginLeft: 4 }}
+
+                    <View
+                      style={[styles.cardActions, { marginTop: SPACING.md }]}
                     >
-                      Delete
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </Card>
-            );
-          })
-        )}
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          { borderColor: colors.border },
+                        ]}
+                        onPress={() => openEditModal(cop)}
+                      >
+                        <Ionicons
+                          name="create-outline"
+                          size={16}
+                          color={colors.primary}
+                        />
+                        <Text
+                          variant="xs"
+                          color={colors.primary}
+                          style={{ marginLeft: 4 }}
+                        >
+                          Edit
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          { borderColor: colors.border },
+                        ]}
+                        onPress={() => handleDeleteCoupon(cop._id)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={16}
+                          color={colors.error}
+                        />
+                        <Text
+                          variant="xs"
+                          color={colors.error}
+                          style={{ marginLeft: 4 }}
+                        >
+                          Delete
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Card>
+                );
+              })}
       </ScrollView>
 
       {/* COUPON MODAL SHEET */}

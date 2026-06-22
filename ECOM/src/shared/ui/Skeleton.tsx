@@ -205,6 +205,98 @@ export const ProductSkeletonFooter: React.FC<{ count: number; cardWidth?: number
   );
 };
 
+export const AdminProductSkeleton: React.FC = () => {
+  const { colors } = useTheme();
+
+  return (
+    <Card style={[styles.orderCard, { borderColor: colors.border }]}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Skeleton width={160} height={14} style={{ marginBottom: 6 }} />
+          <Skeleton width={180} height={10} style={{ marginBottom: 4 }} />
+          <Skeleton width={200} height={10} />
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Skeleton width={50} height={14} />
+        </View>
+      </View>
+
+      <View style={{ flexDirection: "row", marginTop: SPACING.sm, gap: SPACING.sm }}>
+        <Skeleton width={120} height={32} borderRadius={8} />
+        <Skeleton width={80} height={32} borderRadius={8} />
+      </View>
+    </Card>
+  );
+};
+
+export const AdminCustomerSkeleton: React.FC = () => {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <Card style={[styles.orderCard, { borderColor: colors.border }]}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Skeleton width={40} height={40} borderRadius={20} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Skeleton width={120} height={14} style={{ marginBottom: 6 }} />
+          <Skeleton width={160} height={10} />
+        </View>
+      </View>
+
+      <View style={{ marginTop: SPACING.md, padding: SPACING.md, borderRadius: 8, backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "#f8fafc" }}>
+        <Skeleton width="80%" height={10} style={{ marginBottom: 4 }} />
+        <Skeleton width="60%" height={10} style={{ marginBottom: 4 }} />
+        <Skeleton width="70%" height={10} />
+      </View>
+
+      <View style={{
+        flexDirection: "row",
+        marginTop: SPACING.sm,
+        paddingTop: SPACING.sm,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.border,
+        gap: SPACING.lg,
+      }}>
+        <View>
+          <Skeleton width={60} height={8} style={{ marginBottom: 4 }} />
+          <Skeleton width={20} height={12} />
+        </View>
+        <View>
+          <Skeleton width={80} height={8} style={{ marginBottom: 4 }} />
+          <Skeleton width={30} height={12} />
+        </View>
+      </View>
+    </Card>
+  );
+};
+
+export const AdminItemSkeleton: React.FC<{ hasAvatar?: boolean; hasColorIndicator?: boolean }> = ({ hasAvatar, hasColorIndicator }) => {
+  const { colors } = useTheme();
+
+  return (
+    <Card style={{
+      flexDirection: "row",
+      alignItems: "center",
+      padding: SPACING.md,
+      marginBottom: SPACING.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+    }}>
+      {hasAvatar && (
+        <Skeleton width={44} height={44} borderRadius={4} style={{ marginRight: SPACING.sm }} />
+      )}
+      {hasColorIndicator && (
+        <Skeleton width={22} height={22} borderRadius={11} style={{ marginRight: 12 }} />
+      )}
+      <Skeleton width={120} height={14} style={{ flex: 1 }} />
+      <View style={{ flexDirection: "row", gap: SPACING.md }}>
+        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton width={24} height={24} borderRadius={12} />
+      </View>
+    </Card>
+  );
+};
+
 const styles = StyleSheet.create({
   productWrapper: {
     marginBottom: SPACING.md,

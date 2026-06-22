@@ -558,7 +558,7 @@ export default function Profile() {
                       </Card>
                     );
                   })}
-                {hasMoreOrders && (
+                {hasMoreOrders && !loadingOrders && (
                   <Button
                     title="Load More Orders"
                     onPress={handleLoadMoreOrders}

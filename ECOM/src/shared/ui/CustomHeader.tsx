@@ -268,75 +268,85 @@ Result: Agar limit 2 hai toh exact 2 skeletons load hote hain. Agar aap HEADER_L
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.promoScroll}
         >
-          {loadingCoupons && coupons.length === 0
-            ? Array.from({ length: COUPON_PAGINATION.HEADER_LIMIT }).map(
+          {loadingCoupons && coupons.length === 0 ? (
+            Array.from({ length: COUPON_PAGINATION.HEADER_LIMIT }).map(
               (_, i) => <CouponSkeleton key={`coupon-skeleton-${i}`} />,
             )
-            : promoItems.map((item, index) => {
-              if (item.type === "load_more") {
-                return (
-                  <TouchableOpacity
-                    key={item.id || index}
-                    onPress={handleLoadMoreCoupons}
-                    activeOpacity={0.7}
-                    style={[
-                      styles.promoPill,
-                      {
-                        backgroundColor: isDark
-                          ? "rgba(99, 102, 241, 0.15)"
-                          : "#e0e7ff",
-                        borderColor: colors.primary,
-                        borderWidth: 1,
-                        marginRight: SPACING.sm,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="chevron-forward-circle"
-                      size={12}
-                      color={colors.primary}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text variant="xs" weight="bold" color={colors.primary}>
-                      Load More Offers ⚡
-                    </Text>
-                  </TouchableOpacity>
-                );
-              } else if (item.type === "coupon") {
-                return (
-                  <View
-                    key={item.id || index}
-                    style={[
-                      styles.promoPill,
-                      {
-                        backgroundColor: isDark
-                          ? "rgba(16, 185, 129, 0.1)"
-                          : "#ecfdf5",
-                        borderColor: isDark
-                          ? "rgba(16, 185, 129, 0.2)"
-                          : "#d1fae5",
-                        borderWidth: 1,
-                        marginRight: SPACING.sm,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="pricetag"
-                      size={12}
-                      color={isDark ? "#34d399" : "#059669"}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text
-                      variant="xs"
-                      weight="bold"
-                      color={isDark ? "#34d399" : "#059669"}
+          ) : (
+            <>
+              {promoItems.map((item, index) => {
+                if (item.type === "load_more") {
+                  if (loadingCoupons) return null;
+                  return (
+                    <TouchableOpacity
+                      key={item.id || index}
+                      onPress={handleLoadMoreCoupons}
+                      activeOpacity={0.7}
+                      style={[
+                        styles.promoPill,
+                        {
+                          backgroundColor: isDark
+                            ? "rgba(99, 102, 241, 0.15)"
+                            : "#e0e7ff",
+                          borderColor: colors.primary,
+                          borderWidth: 1,
+                          marginRight: SPACING.sm,
+                        },
+                      ]}
                     >
-                      Code {item.code.toUpperCase()}: Get {item.discount}% OFF
-                    </Text>
-                  </View>
-                );
-              }
-            })}
+                      <Ionicons
+                        name="chevron-forward-circle"
+                        size={12}
+                        color={colors.primary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text variant="xs" weight="bold" color={colors.primary}>
+                        Load More Offers ⚡
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                } else if (item.type === "coupon") {
+                  return (
+                    <View
+                      key={item.id || index}
+                      style={[
+                        styles.promoPill,
+                        {
+                          backgroundColor: isDark
+                            ? "rgba(16, 185, 129, 0.1)"
+                            : "#ecfdf5",
+                          borderColor: isDark
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : "#d1fae5",
+                          borderWidth: 1,
+                          marginRight: SPACING.sm,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="pricetag"
+                        size={12}
+                        color={isDark ? "#34d399" : "#059669"}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        variant="xs"
+                        weight="bold"
+                        color={isDark ? "#34d399" : "#059669"}
+                      >
+                        Code {item.code.toUpperCase()}: Get {item.discount}% OFF
+                      </Text>
+                    </View>
+                  );
+                }
+              })}
+              {loadingCoupons && (
+                Array.from({ length: COUPON_PAGINATION.HEADER_LIMIT }).map((_, i) => (
+                  <CouponSkeleton key={`header-coupon-loadmore-skeleton-${i}`} />
+                ))
+              )}
+            </>
+          )}
         </ScrollView>
       </View>
 

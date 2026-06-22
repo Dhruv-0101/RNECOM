@@ -1,4 +1,5 @@
 export const COUPON_PAGINATION = {
   HEADER_LIMIT: 2,
   CHECKOUT_LIMIT: 2,
+  ADMIN_SHOW_LIMIT: 4,
 } as const;

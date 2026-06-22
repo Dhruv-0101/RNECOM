@@ -386,7 +386,7 @@ Since we reset setPage(1), the new query is starting fresh on Page 1. Clearing t
           contentContainerStyle={styles.sidebarContent}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={
-            !isCategoriesLoading && hasMoreCategories ? (
+            !isCategoriesLoading && hasMoreCategories && !isCategoriesFetching ? (
               <TouchableOpacity
                 activeOpacity={0.7}
                 style={[
@@ -400,25 +400,21 @@ Since we reset setPage(1), the new query is starting fresh on Page 1. Clearing t
                 ]}
                 onPress={() => setCategoryPage((p) => p + 1)}
               >
-                {isCategoriesFetching ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons name="add" size={16} color={colors.primary} />
-                    <Text
-                      variant="xxs"
-                      weight="bold"
-                      color={colors.primary}
-                      style={{ marginTop: 2 }}
-                    >
-                      Load More
-                    </Text>
-                  </>
-                )}
+                <Ionicons name="add" size={16} color={colors.primary} />
+                <Text
+                  variant="xxs"
+                  weight="bold"
+                  color={colors.primary}
+                  style={{ marginTop: 2 }}
+                >
+                  Load More
+                </Text>
               </TouchableOpacity>
             ) : isCategoriesFetching && categoryPage > 1 ? (
-              <View style={{ paddingVertical: 12 }}>
-                <ActivityIndicator size="small" color={colors.primary} />
+              <View style={{ paddingVertical: 12, gap: 12 }}>
+                {Array.from({ length: CATEGORY_PAGINATION.SIDEBAR_LIMIT }).map((_, i) => (
+                  <CategorySkeletonItem key={`sidebar-loadmore-skeleton-${i}`} />
+                ))}
               </View>
             ) : null
           }

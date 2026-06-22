@@ -20,6 +20,7 @@ import { Button } from "@/src/shared/ui/Button";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 import { BRAND_PAGINATION } from "@/src/features/brands/config/pagination";
+import { AdminItemSkeleton } from "@/src/shared/ui/Skeleton";
 
 interface Brand {
   _id: string;
@@ -220,13 +221,19 @@ export default function AdminBrands() {
           />
         }
       >
-        {loading && !refreshing && (
+        {loading && !refreshing && brands.length > 0 && (
           <View style={styles.inlineLoader}>
             <ActivityIndicator size="small" color={colors.primary} />
           </View>
         )}
 
-        {brands.length === 0 ? (
+        {loading && !refreshing && brands.length === 0 ? (
+          <View style={{ gap: SPACING.md }}>
+            {Array.from({ length: BRAND_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+              <AdminItemSkeleton key={`admin-brand-initial-skeleton-${i}`} />
+            ))}
+          </View>
+        ) : brands.length === 0 ? (
           <Text variant="sm" color={colors.textMuted} align="center" style={{ marginTop: SPACING.xxl }}>
             {searchQuery ? "No matching brands found." : "No brands saved."}
           </Text>
@@ -253,15 +260,22 @@ export default function AdminBrands() {
                 </View>
               </Card>
             ))}
-            {hasMore && (
+            {hasMore && !loading && (
               <Button
                 title="Load More"
                 onPress={handleLoadMore}
-                loading={loading}
+                loading={false}
                 disabled={loading}
                 variant="outline"
                 style={{ marginTop: SPACING.md, height: 44, borderRadius: 22 }}
               />
+            )}
+            {loading && brands.length > 0 && (
+              <View style={{ marginTop: SPACING.md, gap: SPACING.md }}>
+                {Array.from({ length: BRAND_PAGINATION.ADMIN_LIMIT }).map((_, i) => (
+                  <AdminItemSkeleton key={`admin-brand-loadmore-skeleton-${i}`} />
+                ))}
+              </View>
             )}
           </>
         )}
