@@ -70,19 +70,111 @@ export default function AdminProducts() {
   // Image picker state for products (array of URIs)
   const [productImageUris, setProductImageUris] = useState<string[]>([]);
 
-  const loadStaticData = async () => {
+  // Brands pagination
+  const [brandsPage, setBrandsPage] = useState(1);
+  const [hasMoreBrands, setHasMoreBrands] = useState(true);
+  const [loadingBrands, setLoadingBrands] = useState(false);
+
+  // Categories pagination
+  const [categoriesPage, setCategoriesPage] = useState(1);
+  const [hasMoreCategories, setHasMoreCategories] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  // Colors pagination
+  const [colorsPage, setColorsPage] = useState(1);
+  const [hasMoreColors, setHasMoreColors] = useState(true);
+  const [loadingColors, setLoadingColors] = useState(false);
+
+  const loadBrandsData = async (pageNum: number, isAppend = false) => {
+    setLoadingBrands(true);
     try {
-      const [brandRes, catRes, colorRes] = await Promise.all([
-        apiClient.get(`/api/v1/brands?limit=${BRAND_PAGINATION.DEFAULT_LIMIT}`),
-        apiClient.get(`/api/v1/categories?limit=${CATEGORY_PAGINATION.DEFAULT_LIMIT}`),
-        apiClient.get(`/api/v1/colors?limit=${COLOR_PAGINATION.DEFAULT_LIMIT}`),
-      ]);
-      setBrands(brandRes.data?.brands || []);
-      setCategories(catRes.data?.categories || []);
-      setColorsList(colorRes.data?.colors || []);
+      const res = await apiClient.get("/api/v1/brands", {
+        params: {
+          page: pageNum,
+          limit: BRAND_PAGINATION.WHILE_ADD_PRODUCT_SHOW_LIMIT,
+        },
+      });
+      const fetched = res.data?.brands || [];
+      if (isAppend) {
+        setBrands((prev) => {
+          const existingIds = new Set(prev.map((b) => b._id));
+          const uniqueNew = fetched.filter((b: any) => !existingIds.has(b._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setBrands(fetched);
+      }
+      setHasMoreBrands(res.data?.pagination?.hasNextPage ?? false);
     } catch (err) {
-      console.log("Failed to load select options context:", err);
+      console.log("Failed to load brands context:", err);
+    } finally {
+      setLoadingBrands(false);
     }
+  };
+
+  const loadCategoriesData = async (pageNum: number, isAppend = false) => {
+    setLoadingCategories(true);
+    try {
+      const res = await apiClient.get("/api/v1/categories", {
+        params: {
+          page: pageNum,
+          limit: CATEGORY_PAGINATION.WHILE_ADD_PRODUCT_SHOW_LIMIT,
+        },
+      });
+      const fetched = res.data?.categories || [];
+      if (isAppend) {
+        setCategories((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetched.filter((c: any) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setCategories(fetched);
+      }
+      setHasMoreCategories(res.data?.pagination?.hasNextPage ?? false);
+    } catch (err) {
+      console.log("Failed to load categories context:", err);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const loadColorsData = async (pageNum: number, isAppend = false) => {
+    setLoadingColors(true);
+    try {
+      const res = await apiClient.get("/api/v1/colors", {
+        params: {
+          page: pageNum,
+          limit: COLOR_PAGINATION.WHILE_ADD_PRODUCT_SHOW_LIMIT,
+        },
+      });
+      const fetched = res.data?.colors || [];
+      if (isAppend) {
+        setColorsList((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const uniqueNew = fetched.filter((c: any) => !existingIds.has(c._id));
+          return [...prev, ...uniqueNew];
+        });
+      } else {
+        setColorsList(fetched);
+      }
+      setHasMoreColors(res.data?.pagination?.hasNextPage ?? false);
+    } catch (err) {
+      console.log("Failed to load colors context:", err);
+    } finally {
+      setLoadingColors(false);
+    }
+  };
+
+  const loadStaticData = async () => {
+    setBrandsPage(1);
+    setCategoriesPage(1);
+    setColorsPage(1);
+    await Promise.all([
+      loadBrandsData(1, false),
+      loadCategoriesData(1, false),
+      loadColorsData(1, false),
+    ]);
   };
 
   const loadProducts = async (pageNum: number, searchVal: string, isAppend = false) => {
@@ -91,7 +183,7 @@ export default function AdminProducts() {
       const res = await apiClient.get("/api/v1/products", {
         params: {
           page: pageNum,
-          limit: PRODUCT_PAGINATION.DEFAULT_LIMIT,
+          limit: PRODUCT_PAGINATION.ADMIN_PRODUCT_LIMIT,
           name: searchVal || undefined,
         },
       });
@@ -106,11 +198,7 @@ export default function AdminProducts() {
         setProducts(fetchedProducts);
       }
 
-      if (fetchedProducts.length < PRODUCT_PAGINATION.DEFAULT_LIMIT) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      setHasMore(res.data?.pagination?.hasNextPage ?? false);
     } catch (err) {
       console.log("Failed to load products list:", err);
       Alert.alert("Error", "Could not fetch products list from backend database.");
@@ -492,6 +580,25 @@ export default function AdminProducts() {
                       </Text>
                     </TouchableOpacity>
                   ))}
+                  {hasMoreBrands && (
+                    <TouchableOpacity
+                      style={[styles.selectionItem, { borderColor: colors.primary, borderStyle: "dashed" }]}
+                      onPress={() => {
+                        const next = brandsPage + 1;
+                        setBrandsPage(next);
+                        loadBrandsData(next, true);
+                      }}
+                      disabled={loadingBrands}
+                    >
+                      {loadingBrands ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text variant="xs" color={colors.primary} weight="bold">
+                          + Load More
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Selector: Categories */}
@@ -513,6 +620,25 @@ export default function AdminProducts() {
                       </Text>
                     </TouchableOpacity>
                   ))}
+                  {hasMoreCategories && (
+                    <TouchableOpacity
+                      style={[styles.selectionItem, { borderColor: colors.primary, borderStyle: "dashed" }]}
+                      onPress={() => {
+                        const next = categoriesPage + 1;
+                        setCategoriesPage(next);
+                        loadCategoriesData(next, true);
+                      }}
+                      disabled={loadingCategories}
+                    >
+                      {loadingCategories ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text variant="xs" color={colors.primary} weight="bold">
+                          + Load More
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Selector: Sizes */}
@@ -561,6 +687,25 @@ export default function AdminProducts() {
                       </TouchableOpacity>
                     );
                   })}
+                  {hasMoreColors && (
+                    <TouchableOpacity
+                      style={[styles.selectionItem, { borderColor: colors.primary, borderStyle: "dashed" }]}
+                      onPress={() => {
+                        const next = colorsPage + 1;
+                        setColorsPage(next);
+                        loadColorsData(next, true);
+                      }}
+                      disabled={loadingColors}
+                    >
+                      {loadingColors ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text variant="xs" color={colors.primary} weight="bold">
+                          + Load More
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Product image picker — only for Add mode */}

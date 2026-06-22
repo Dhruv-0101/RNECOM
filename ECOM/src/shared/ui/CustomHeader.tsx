@@ -58,9 +58,8 @@ export function CustomHeader() {
       } else {
         setCoupons(fetchedCoupons);
       }
-      setHasMoreCoupons(
-        !!res?.pagination?.next
-      );
+      setHasMoreCoupons(res?.pagination?.hasNextPage ?? false);
+
       /*
       Case 1: Backend me total 5 coupons hain.
 Humne Page 1 request kiya (limit = 2).

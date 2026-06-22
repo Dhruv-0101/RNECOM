@@ -50,11 +50,7 @@ export default function AdminCustomers() {
         setCustomers(fetchedCustomers);
       }
 
-      if (fetchedCustomers.length < CUSTOMER_PAGINATION.ADMIN_LIMIT) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      setHasMore(res.pagination?.hasNextPage ?? false);
     } catch (err) {
       console.log("Failed to load customers list:", err);
       Alert.alert("Error", "Could not fetch customers list from backend.");

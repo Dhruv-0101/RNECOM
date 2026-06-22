@@ -61,11 +61,7 @@ export default function AdminOrders() {
         setOrders(fetchedOrders);
       }
 
-      if (fetchedOrders.length < ORDER_PAGINATION.ADMIN_LIMIT) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      setHasMore(res.data?.pagination?.hasNextPage ?? false);
     } catch (err) {
       console.log("Failed to load orders list:", err);
       Alert.alert("Error", "Could not fetch orders log from backend.");

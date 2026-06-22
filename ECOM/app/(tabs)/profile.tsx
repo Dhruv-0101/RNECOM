@@ -115,11 +115,7 @@ export default function Profile() {
         setOrders(fetchedOrders);
       }
 
-      if (fetchedOrders.length < ORDER_PAGINATION.CUSTOMER_LIMIT) {
-        setHasMoreOrders(false);
-      } else {
-        setHasMoreOrders(true);
-      }
+      setHasMoreOrders(res.data?.pagination?.hasNextPage ?? false);
     } catch (err) {
       console.log("Failed to load user orders:", err);
     } finally {
@@ -510,7 +506,7 @@ export default function Profile() {
                         {isExpanded && (
                           <View style={styles.expandedContent}>
                             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                            
+
                             <Text variant="xs" weight="bold" color={colors.textMuted} style={styles.sectionTitle}>
                               ITEMS PURCHASED
                             </Text>
@@ -574,7 +570,7 @@ export default function Profile() {
                 )}
                 {loadingOrders && orders.length > 0 && (
                   <View style={{ marginTop: SPACING.md }}>
-                    {Array.from({ length: ORDER_PAGINATION.CUSTOMER_LOAD_MORE_LIMIT }).map((_, i) => (
+                    {Array.from({ length: ORDER_PAGINATION.CUSTOMER_LIMIT }).map((_, i) => (
                       <OrderSkeletonCard key={`orders-load-more-skeleton-${i}`} />
                     ))}
                   </View>
@@ -627,7 +623,7 @@ export default function Profile() {
                 <Text variant="md" weight="bold" style={{ marginBottom: SPACING.md }}>
                   {user?.hasShippingAddress ? "Modify Shipping Details" : "Setup Shipping Location"}
                 </Text>
-                
+
                 <View style={styles.formRow}>
                   <Input
                     label="First Name"

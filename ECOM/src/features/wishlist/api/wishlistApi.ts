@@ -1,10 +1,9 @@
 import { apiClient } from "@/src/services/api/apiClient";
 import { ENDPOINTS } from "@/src/services/api/endpoints";
 import { Product } from "@/src/features/products/types/product.types";
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
 
-export interface WishlistResponse {
-  status: string;
-  message: string;
+export interface WishlistResponse extends PaginatedResponse<Product> {
   wishlist: Product[];
 }
 

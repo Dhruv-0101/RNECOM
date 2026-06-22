@@ -19,15 +19,11 @@ export interface Customer {
   createdAt: string;
 }
 
-export interface CustomersResponse {
-  status: string;
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
+
+export interface CustomersResponse extends PaginatedResponse<Customer> {
   total: number;
   results: number;
-  pagination: {
-    next?: { page: number; limit: number };
-    prev?: { page: number; limit: number };
-  };
-  message: string;
   users: Customer[];
 }
 

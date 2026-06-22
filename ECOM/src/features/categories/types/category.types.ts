@@ -7,9 +7,9 @@ export interface Category {
   updatedAt: string;
 }
 
-export interface CategoriesResponse {
-  status: string;
-  message: string;
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
+
+export interface CategoriesResponse extends PaginatedResponse<Category> {
   categories: Category[];
   total?: number;
   results?: number;

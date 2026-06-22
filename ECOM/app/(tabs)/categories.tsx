@@ -95,11 +95,7 @@ export default function Categories() {
           return [...prev, ...uniqueNew];
         });
       }
-      if (fetchedCategories.length < CATEGORY_PAGINATION.SIDEBAR_LIMIT) {
-        setHasMoreCategories(false);
-      } else {
-        setHasMoreCategories(true);
-      }
+      setHasMoreCategories(categoriesData?.pagination?.hasNextPage ?? false);
     }
   }, [categoriesData, categoryPage]);
 
@@ -195,12 +191,7 @@ Since we reset setPage(1), the new query is starting fresh on Page 1. Clearing t
           return [...prev, ...uniqueNew];
         });
       }
-      // If server returned less than our page limit, we've reached the end
-      if (fetchedProducts.length < PRODUCT_PAGINATION.CATEGORY_LIMIT) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      setHasMore(productsData?.pagination?.hasNextPage ?? false);
     }
   }, [productsData, page]);
 

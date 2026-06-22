@@ -1,5 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Category from "../model/Category.js";
+import { buildPagination } from "../utils/pagination.js";
+
 // @desc    Create new category
 // @route   POST /api/v1/categories
 // @access  Private/Admin
@@ -34,7 +36,6 @@ export const getAllCategoriesCtrl = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
 
   const query = {};
   if (req.query.name) {
@@ -47,27 +48,14 @@ export const getAllCategoriesCtrl = asyncHandler(async (req, res) => {
     .skip(startIndex)
     .limit(limit);
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.json({
     status: "success",
+    message: "Categories fetched successfully",
     total,
     results: categories.length,
-    pagination,
-    message: "Categories fetched successfully",
+    pagination: buildPagination(page, limit, total),
     categories,
+    data: categories,
   });
 });
 

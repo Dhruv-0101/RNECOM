@@ -1,6 +1,7 @@
 import { apiClient } from "@/src/services/api/apiClient";
 import { ENDPOINTS } from "@/src/services/api/endpoints";
-import { UserProfile } from "@/src/features/auth/types/auth.types";
+import { UserProfile, PopulatedOrder } from "@/src/features/auth/types/auth.types";
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
 
 export interface OrderItemInput {
   _id: string; // Product ID
@@ -20,6 +21,13 @@ export interface CreateOrderPayload {
 export interface CreateOrderResponse {
   url: string; // Stripe checkout session URL
   orderId?: string; // Database Order ID
+}
+
+export interface OrdersResponse extends PaginatedResponse<PopulatedOrder> {
+  success: boolean;
+  total?: number;
+  results?: number;
+  orders: PopulatedOrder[];
 }
 
 export const ordersApi = {
@@ -42,8 +50,8 @@ export const ordersApi = {
   /**
    * Fetch all orders with optional page, limit, search query parameters
    */
-  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<any> {
-    const response = await apiClient.get<any>(ENDPOINTS.ORDERS.LIST, { params });
+  async getOrders(params?: { page?: number; limit?: number; search?: string }): Promise<OrdersResponse> {
+    const response = await apiClient.get<OrdersResponse>(ENDPOINTS.ORDERS.LIST, { params });
     return response.data;
   },
 };

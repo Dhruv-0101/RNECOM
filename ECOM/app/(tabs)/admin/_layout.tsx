@@ -5,7 +5,8 @@ import { useCurrentUser } from "@/src/features/auth/hooks/useCurrentUser";
 import { useTheme } from "@/src/shared/providers/ThemeProvider";
 
 export default function AdminLayout() {
-  const { user, isAuthenticated, isLoading } = useCurrentUser();
+  const { user, isAuthenticated, isInitialized } = useCurrentUser();
+  const isLoading = !isInitialized;
   const router = useRouter();
   const { colors } = useTheme();
 

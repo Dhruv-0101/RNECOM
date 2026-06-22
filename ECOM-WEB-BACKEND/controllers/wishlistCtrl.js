@@ -1,5 +1,6 @@
 import User from "../model/User.js";
 import asyncHandler from "express-async-handler";
+import { buildPagination } from "../utils/pagination.js";
 
 // @desc    Toggle product in wishlist
 // @route   POST /api/v1/wishlist/toggle
@@ -70,27 +71,14 @@ export const getWishlistCtrl = asyncHandler(async (req, res) => {
     ? user.wishLists.slice(startIndex, endIndex)
     : [];
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.json({
     status: "success",
     total,
     results: paginatedWishlist.length,
-    pagination,
+    pagination: buildPagination(page, limit, total),
     message: "Wishlist fetched successfully",
     wishlist: paginatedWishlist,
+    data: paginatedWishlist,
   });
 });
 

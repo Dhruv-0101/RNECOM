@@ -1,3 +1,5 @@
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
+
 export interface Coupon {
   _id: string;
   code: string;
@@ -9,23 +11,10 @@ export interface Coupon {
   updatedAt?: string;
 }
 
-export interface PaginationDetails {
-  page: number;
-  limit: number;
-}
-
-export interface Pagination {
-  next?: PaginationDetails;
-  prev?: PaginationDetails;
-}
-
-export interface CouponsResponse {
-  status: string;
-  message: string;
+export interface CouponsResponse extends PaginatedResponse<Coupon> {
   coupons: Coupon[];
   total?: number;
   results?: number;
-  pagination?: Pagination;
 }
 
 export interface SingleCouponResponse {

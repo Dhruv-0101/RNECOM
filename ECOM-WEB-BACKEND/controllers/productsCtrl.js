@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import Brand from "../model/Brand.js";
 import Category from "../model/Category.js";
 import Product from "../model/Product.js";
+import { buildPagination } from "../utils/pagination.js";
 
 // @desc    Create new product
 // @route   POST /api/v1/products
@@ -127,27 +128,10 @@ export const getProductsCtrl = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   //startIdx
   const startIndex = (page - 1) * limit;
-  //endIdx
-  const endIndex = page * limit;
   //total
   const total = await Product.countDocuments(query);
 
   productQuery = productQuery.skip(startIndex).limit(limit);
-
-  //pagination results
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
 
   //await the query
   const products = await productQuery.populate({ path: "reviews", select: "rating" });
@@ -155,9 +139,10 @@ export const getProductsCtrl = asyncHandler(async (req, res) => {
     status: "success",
     total,
     results: products.length,
-    pagination,
+    pagination: buildPagination(page, limit, total),
     message: "Products fetched successfully",
     products,
+    data: products,
   });
 });
 

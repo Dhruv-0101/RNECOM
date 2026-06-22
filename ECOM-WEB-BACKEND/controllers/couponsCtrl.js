@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Coupon from "../model/Coupon.js";
+import { buildPagination } from "../utils/pagination.js";
 // @desc    Create new Coupon
 // @route   POST /api/v1/coupons
 // @access  Private/Admin
@@ -43,7 +44,6 @@ export const getAllCouponsCtrl = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
 
   const query = {};
   if (req.query.code) {
@@ -54,27 +54,14 @@ export const getAllCouponsCtrl = asyncHandler(async (req, res) => {
 
   const coupons = await Coupon.find(query).skip(startIndex).limit(limit);
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.status(200).json({
     status: "success",
+    message: "All coupons",
     total,
     results: coupons.length,
-    pagination,
-    message: "All coupons",
+    pagination: buildPagination(page, limit, total),
     coupons,
+    data: coupons,
   });
 });
 // @desc    Get single coupon

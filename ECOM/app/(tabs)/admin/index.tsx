@@ -16,6 +16,11 @@ import { Card } from "@/src/shared/ui/Card";
 import { SPACING, BORDER_RADIUS } from "@/src/shared/constants/spacing";
 import { apiClient } from "@/src/services/api/apiClient";
 
+/*
+Bottom Tab Bar ➡️ Admin: Tab Navigation (switches tabs).
+Admin Dashboard ➡️ Sub-controls (Orders, Products, etc.): Stack Navigation (pushes/pops screens on a stack).
+*/
+
 export default function AdminDashboard() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -45,6 +50,22 @@ export default function AdminDashboard() {
       // 1. Fetch sales summary stats
       const statsRes = await apiClient.get("/api/v1/orders/sales/stats");
       if (statsRes.data?.orders?.length > 0) {
+        /*
+        2. The MongoDB Database Response
+Because we group all documents using _id: null (meaning aggregate everything into a single group), MongoDB returns the result as an array containing exactly one object:
+
+json
+[
+  {
+    "_id": null,
+    "minimumSale": 15.00,
+    "totalSales": 12450.50,
+    "maxSale": 899.99,
+    "avgSale": 249.00
+  }
+]
+(If there are no orders at all in the database, it returns an empty array []).
+        */
         setStats(statsRes.data.orders[0]);
       } else {
         setStats(null);

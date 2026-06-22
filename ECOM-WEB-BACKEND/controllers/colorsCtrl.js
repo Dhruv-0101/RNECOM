@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Brand from "../model/Brand.js";
 import Color from "../model/Color.js";
+import { buildPagination } from "../utils/pagination.js";
 
 // @desc    Create new Color
 // @route   POST /api/v1/colors
@@ -35,7 +36,6 @@ export const getAllColorsCtrl = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) ? parseInt(req.query.page) : 1;
   const limit = parseInt(req.query.limit) ? parseInt(req.query.limit) : 10;
   const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
 
   const query = {};
   if (req.query.name) {
@@ -48,27 +48,14 @@ export const getAllColorsCtrl = asyncHandler(async (req, res) => {
     .skip(startIndex)
     .limit(limit);
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.json({
     status: "success",
+    message: "colors fetched successfully",
     total,
     results: colors.length,
-    pagination,
-    message: "colors fetched successfully",
+    pagination: buildPagination(page, limit, total),
     colors,
+    data: colors,
   });
 });
 

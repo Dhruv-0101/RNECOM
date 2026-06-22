@@ -1,5 +1,6 @@
 import User from "../model/User.js";
 import asyncHandler from "express-async-handler";
+import { buildPagination } from "../utils/pagination.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../utils/generateToken.js";
 import { getTokenFromHeader } from "../utils/getTokenFromHeader.js";
@@ -155,26 +156,13 @@ export const getAllUsersCtrl = asyncHandler(async (req, res) => {
     };
   });
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.json({
     status: "success",
     total,
     results: formattedUsers.length,
-    pagination,
+    pagination: buildPagination(page, limit, total),
     message: "Users fetched successfully",
     users: formattedUsers,
+    data: formattedUsers,
   });
 });

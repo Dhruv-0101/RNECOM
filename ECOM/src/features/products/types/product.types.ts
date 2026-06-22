@@ -31,20 +31,10 @@ export interface Product {
   updatedAt: string;
 }
 
-export interface ProductsResponse {
-  status: string;
+import { PaginatedResponse } from "@/src/shared/types/pagination.types";
+
+export interface ProductsResponse extends PaginatedResponse<Product> {
   total: number;
   results: number;
-  pagination: {
-    next?: {
-      page: number;
-      limit: number;
-    };
-    prev?: {
-      page: number;
-      limit: number;
-    };
-  };
-  message: string;
   products: Product[];
 }

@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import dotenv from "dotenv";
+import { buildPagination } from "../utils/pagination.js";
 dotenv.config();
 import Stripe from "stripe";
 import Order from "../model/Order.js";
@@ -173,27 +174,15 @@ export const getAllordersCtrl = asyncHandler(async (req, res) => {
     .skip(startIndex)
     .limit(limit);
 
-  const pagination = {};
-  if (endIndex < total) {
-    pagination.next = {
-      page: page + 1,
-      limit,
-    };
-  }
-  if (startIndex > 0) {
-    pagination.prev = {
-      page: page - 1,
-      limit,
-    };
-  }
-
   res.json({
     success: true,
+    status: "success",
     total,
     results: orders.length,
-    pagination,
+    pagination: buildPagination(page, limit, total),
     message: "All orders",
     orders,
+    data: orders,
   });
 });
 

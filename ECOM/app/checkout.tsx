@@ -121,9 +121,9 @@ export default function CheckoutScreen() {
       } else {
         setCoupons(fetchedCoupons);
       }
-
+      //Get res.pagination.hasNextPage if it exists, otherwise return false
       setHasMoreCoupons(
-        !!res?.pagination?.next
+        res?.pagination?.hasNextPage ?? false
       );
     } catch (err) {
       console.log(

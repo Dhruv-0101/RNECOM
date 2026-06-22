@@ -143,24 +143,22 @@ export default function Home() {
   const hasMoreToLoad =
     productsList.length > 0 &&
     productsList.length < 12 &&
-    (data?.products?.length || 0) === PRODUCT_PAGINATION.HOME_TRENDING_LIMIT;
+    (data?.pagination?.hasNextPage ?? false);
 
   const shouldShowExplore =
     productsList.length > 0 &&
     (productsList.length >= 12 ||
-      (data?.products?.length || 0) < PRODUCT_PAGINATION.HOME_TRENDING_LIMIT);
+      !(data?.pagination?.hasNextPage ?? false));
 
   const hasMoreCategoriesToLoad =
     categoriesList.length > 0 &&
     categoriesList.length < 10 &&
-    (categoriesData?.categories?.length || 0) ===
-      CATEGORY_PAGINATION.HOME_SLIDER_LIMIT;
+    (categoriesData?.pagination?.hasNextPage ?? false);
 
   const shouldShowExploreCategories =
     categoriesList.length > 0 &&
     (categoriesList.length >= 10 ||
-      (categoriesData?.categories?.length || 0) <
-        CATEGORY_PAGINATION.HOME_SLIDER_LIMIT);
+      !(categoriesData?.pagination?.hasNextPage ?? false));
 
   const handleRefresh = async () => {
     try {
