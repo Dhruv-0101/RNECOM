@@ -24,7 +24,7 @@ const app = express();
 //cors
 // CORS setup - allow requests only from the frontend URL
 const corsOptions = {
-  origin: "https://ecommerce-frontend-three-theta.vercel.app", // replace with your actual frontend URL
+  origin: process.env.FRONTEND_URL || "https://ecommerce-frontend-three-theta.vercel.app",
   methods: "GET,POST,PUT,DELETE",
   allowedHeaders: "Content-Type,Authorization",
 };
@@ -35,6 +35,7 @@ const stripe = new Stripe(process.env.STRIPE_KEY);
 
 // This is your Stripe CLI webhook secret for testing your endpoint locally.
 const endpointSecret =
+  process.env.STRIPE_WEBHOOK_SECRET ||
   "whsec_84541105eba75c99a3a1438b2613b17ccf830121791fad595954dde7dbd9a831";
 
 app.post(
